@@ -11,6 +11,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from azure.storage.blob import BlobServiceClient
 import io
+import json
 
 app = FastAPI()
 
