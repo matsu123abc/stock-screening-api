@@ -127,10 +127,8 @@ async def screening(body: ScreeningRequest):
 
         for symbol in symbols:
             try:
-                # 180日分の株価データ
-                end = datetime.now()
-                start = end - timedelta(days=180)
-                df = yf.download(symbol, start=start, end=end)
+                # 180日分の株価データ（history を使用）
+                df = yf.Ticker(symbol).history(period="6mo")
 
                 if df.empty:
                     continue
