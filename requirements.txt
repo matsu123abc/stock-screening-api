@@ -3,3 +3,5 @@ uvicorn
 yfinance
 openai
 pandas
+numpy
+
