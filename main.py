@@ -9,8 +9,138 @@ from openai import AzureOpenAI
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from azure.storage.blob import BlobServiceClient
+import io
 
 app = FastAPI()
+
+def process_symbol(symbol: str, company_name: str, market: str, log, python_condition: str):
+    try:
+        # --- 株価データ取得（history を使用） ---
+        df = yf.Ticker(symbol).history(period="6mo")
+
+        if df.empty:
+            log(f"[WARN] {symbol} の株価データが取得できませんでした")
+            return None
+
+        # --- EMA 計算 ---
+        df["EMA20"] = df["Close"].ewm(span=20).mean()
+        df["EMA50"] = df["Close"].ewm(span=50).mean()
+        df["EMA200"] = df["Close"].ewm(span=200).mean()
+
+        # --- 直近高値からの下落率 ---
+        recent_high = df["High"].rolling(window=60).max().iloc[-1]
+        drop_from_high_pct = (df["Close"].iloc[-1] - recent_high) / recent_high * 100
+
+        # --- 直近安値からの反発率 ---
+        recent_low = df["Low"].rolling(window=60).min().iloc[-1]
+        rebound_from_low_pct = (df["Close"].iloc[-1] - recent_low) / recent_low * 100
+
+        # --- EMA の位置関係 ---
+        ema20_vs_ema50 = (df["EMA20"].iloc[-1] - df["EMA50"].iloc[-1]) / df["EMA50"].iloc[-1] * 100
+        ema50_vs_ema200 = (df["EMA50"].iloc[-1] - df["EMA200"].iloc[-1]) / df["EMA200"].iloc[-1] * 100
+        price_vs_ema20_pct = (df["Close"].iloc[-1] - df["EMA20"].iloc[-1]) / df["EMA20"].iloc[-1] * 100
+
+        # --- 出来高比 ---
+        df["vol_ma20"] = df["Volume"].rolling(window=20).mean()
+        vol_vs_ma20 = df["Volume"].iloc[-1] / df["vol_ma20"].iloc[-1]
+
+        # --- ATR 計算 ---
+        df["H-L"] = df["High"] - df["Low"]
+        df["H-PC"] = abs(df["High"] - df["Close"].shift(1))
+        df["L-PC"] = abs(df["Low"] - df["Close"].shift(1))
+        df["TR"] = df[["H-L", "H-PC", "L-PC"]].max(axis=1)
+        df["ATR"] = df["TR"].rolling(window=14).mean()
+        atr_ratio = df["ATR"].iloc[-1] / df["Close"].iloc[-1] * 100
+
+        # --- 条件式の評価 ---
+        local_vars = {
+            "drop_from_high_pct": drop_from_high_pct,
+            "rebound_from_low_pct": rebound_from_low_pct,
+            "ema20_vs_ema50": ema20_vs_ema50,
+            "ema50_vs_ema200": ema50_vs_ema200,
+            "price_vs_ema20_pct": price_vs_ema20_pct,
+            "vol_vs_ma20": vol_vs_ma20,
+            "atr_ratio": atr_ratio,
+        }
+
+        try:
+            passed = eval(python_condition, {}, local_vars)
+        except Exception as e:
+            log(f"[ERROR] 条件式の評価に失敗: {e}")
+            return None
+
+        if not passed:
+            return None
+
+        # --- GPT コメント生成（後で Step4-C で実装） ---
+        gpt_comment = None
+
+        result = {
+            "symbol": symbol,
+            "company_name": company_name,
+            "market": market,
+            "drop_from_high_pct": drop_from_high_pct,
+            "rebound_from_low_pct": rebound_from_low_pct,
+            "ema20_vs_ema50": ema20_vs_ema50,
+            "ema50_vs_ema200": ema50_vs_ema200,
+            "price_vs_ema20_pct": price_vs_ema20_pct,
+            "vol_vs_ma20": vol_vs_ma20,
+            "atr_ratio": atr_ratio,
+            "gpt_comment": gpt_comment,
+        }
+
+        log(f"[OK] {symbol} screening passed")
+        return result
+
+    except Exception as e:
+        log(f"[ERROR] {symbol} processing failed: {e}")
+        return None
+
+from azure.storage.blob import BlobServiceClient
+import io
+
+class BlobCSVRequest(BaseModel):
+    blob_filename: str
+
+@app.post("/api/screening_from_blob")
+async def screening_from_blob(body: BlobCSVRequest):
+    try:
+        # --- Blob 接続 ---
+        connect_str = os.getenv("AzureWebJobsStorage")
+        blob_service = BlobServiceClient.from_connection_string(connect_str)
+
+        blob_container = "block-data"
+        blob_name = body.blob_filename
+
+        # --- Blob から CSV を読み込む ---
+        blob_client = blob_service.get_blob_client(
+            container=blob_container,
+            blob=blob_name
+        )
+
+        csv_text = blob_client.download_blob().readall().decode("utf-8")
+
+        # --- pandas で CSV を DataFrame 化 ---
+        df_csv = pd.read_csv(io.StringIO(csv_text))
+
+        # 必須列チェック
+        required_cols = ["コード", "銘柄名", "市場"]
+        for col in required_cols:
+            if col not in df_csv.columns:
+                return {"error": f"CSV に '{col}' 列がありません"}
+
+        # 銘柄リスト抽出
+        symbols = [f"{code}.T" for code in df_csv["コード"]]
+
+        # screening API に渡す
+        screening_request = ScreeningRequest(symbols=symbols)
+        return await screening(screening_request)
+
+    except Exception as e:
+        logging.exception("screening_from_blob error")
+        return {"error": str(e)}
+
 
 @app.get("/")
 def root():

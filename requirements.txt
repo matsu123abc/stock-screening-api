@@ -4,4 +4,4 @@ yfinance
 openai
 pandas
 numpy
-
+azure-storage-blob
