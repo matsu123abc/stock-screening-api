@@ -19,7 +19,6 @@ def root():
 @app.get("/api/explain_symbol")
 async def explain_symbol(symbol: str):
     try:
-        # --- 企業情報を Yahoo Finance から取得 ---
         ticker = yf.Ticker(symbol)
         info = ticker.info
 
@@ -29,7 +28,6 @@ async def explain_symbol(symbol: str):
         if not summary:
             summary = "企業情報（longBusinessSummary）が取得できませんでした。"
 
-        # --- Azure OpenAI に要約させる ---
         client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
@@ -81,7 +79,6 @@ async def explain_symbol(symbol: str):
 # Step3: second_screening API
 # =========================
 
-# Swagger に JSON 入力欄を出すための Pydantic モデル
 class SecondScreeningRequest(BaseModel):
     results: List[Any]
 
