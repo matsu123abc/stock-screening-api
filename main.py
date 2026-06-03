@@ -73,3 +73,34 @@ async def explain_symbol(symbol: str):
     except Exception as e:
         logging.exception("explain_symbol error")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+# =========================
+# Step3: second_screening API
+# =========================
+@app.post("/api/second_screening")
+async def second_screening(request: Request):
+    try:
+        body = await request.json()
+        results = body.get("results", [])
+
+        filtered = []
+        for r in results:
+            if (
+                (r.get("drop_from_high_pct") or 0) < -20 and
+                (r.get("rebound_from_low_pct") or 0) > 25 and
+                (r.get("ema20_vs_ema50") or 0) > 5.0 and
+                (r.get("ema50_vs_ema200") or 0) > 10.0 and
+                (r.get("price_vs_ema20_pct") or 0) > 2 and
+                (r.get("vol_vs_ma20") or 0) > 1.0 and
+                (r.get("atr_ratio") or 0) > 1
+            ):
+                filtered.append(r)
+
+        return JSONResponse(
+            {"second_screening": filtered, "count": len(filtered)},
+            status_code=200
+        )
+
+    except Exception as e:
+        logging.exception("second_screening error")
+        return JSONResponse({"error": str(e)}, status_code=500)
