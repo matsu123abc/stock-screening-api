@@ -312,8 +312,9 @@ async def screening(body: ScreeningRequest):
             except Exception as e:
                 logging.exception(f"Error processing {symbol}")
 
-        return JSONResponse({"results": results}, status_code=200)
+        # ★ JSONResponse をやめて dict を返す
+        return {"results": results}
 
     except Exception as e:
         logging.exception("screening error")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return {"error": str(e)}
