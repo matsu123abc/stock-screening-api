@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import List, Any
 import os
 import logging
 import yfinance as yf
@@ -74,14 +76,19 @@ async def explain_symbol(symbol: str):
         logging.exception("explain_symbol error")
         return JSONResponse({"error": str(e)}, status_code=500)
 
+
 # =========================
 # Step3: second_screening API
 # =========================
+
+# Swagger に JSON 入力欄を出すための Pydantic モデル
+class SecondScreeningRequest(BaseModel):
+    results: List[Any]
+
 @app.post("/api/second_screening")
-async def second_screening(request: Request):
+async def second_screening(body: SecondScreeningRequest):
     try:
-        body = await request.json()
-        results = body.get("results", [])
+        results = body.results
 
         filtered = []
         for r in results:
