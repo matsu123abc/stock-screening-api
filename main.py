@@ -97,9 +97,6 @@ def process_symbol(symbol: str, company_name: str, market: str, log, python_cond
         log(f"[ERROR] {symbol} processing failed: {e}")
         return None
 
-from azure.storage.blob import BlobServiceClient
-import io
-
 class BlobCSVRequest(BaseModel):
     blob_filename: str
 
@@ -133,9 +130,33 @@ async def screening_from_blob(body: BlobCSVRequest):
         # 銘柄リスト抽出
         symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        # screening API に渡す
+        # --- screening API に渡す ---
         screening_request = ScreeningRequest(symbols=symbols)
-        return await screening(screening_request)
+        screening_result = await screening(screening_request)
+        results = screening_result["results"]
+
+        # ============================================================
+        # ★★★ screening 結果を Blob に保存（Functions 版の後半処理）★★★
+        # ============================================================
+        result_container = os.getenv("RESULT_CONTAINER", "screening-results")
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        output_blob_name = f"{today}/screening_{today}.json"
+
+        result_blob = blob_service.get_blob_client(
+            container=result_container,
+            blob=output_blob_name
+        )
+
+        json_text = json.dumps(results, ensure_ascii=False, indent=2)
+        result_blob.upload_blob(json_text, overwrite=True)
+
+        # ============================================================
+
+        return {
+            "saved_to": output_blob_name,
+            "results": results
+        }
 
     except Exception as e:
         logging.exception("screening_from_blob error")
