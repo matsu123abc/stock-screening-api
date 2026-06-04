@@ -945,11 +945,13 @@ function renderIndicatorTable(data) {
 }
 
 async function runThirdScreening() {
-  if (!latestSecond || latestSecond.length === 0) {
-    alert("二次スクリーニング結果がありません。");
+  // ★ 二次スクリーニングではなく「一次スクリーニング結果」をチェック
+  if (!latestResults || latestResults.length === 0) {
+    alert("一次スクリーニング結果がありません。");
     return;
   }
 
+  // ★ 三次スクリーニングは一次スクリーニングの銘柄で実行
   const symbols = latestResults.map(r => r.symbol);
 
   const response = await fetch("/third_screening", {
@@ -961,6 +963,7 @@ async function runThirdScreening() {
   const data = await response.json();
   renderThirdTable(data.results);
 }
+
 
 function renderThirdTable(data) {
   if (!data || data.length === 0) {
