@@ -950,7 +950,7 @@ async function runThirdScreening() {
     return;
   }
 
-  const symbols = latestSecond.map(r => r.symbol);
+  const symbols = latestResults.map(r => r.symbol);
 
   const response = await fetch("/third_screening", {
     method: "POST",
