@@ -571,16 +571,18 @@ async def second_screening(body: SecondScreeningRequest):
 # =========================
 # 3次スクリーニング（企業業績 × AI 分析版）
 # =========================
-@app.function_name(name="third_screening")
-@app.route(route="third_screening", methods=["POST"], auth_level="anonymous")
-def third_screening(req: func.HttpRequest) -> func.HttpResponse:
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
+
+@app.post("/third_screening")
+async def third_screening(body: dict):
+
     try:
-        body = req.get_json()
         symbols = body.get("symbols", [])
 
         if not symbols:
-            return func.HttpResponse(
-                json.dumps({"error": "symbols が空です"}),
+            return JSONResponse(
+                {"error": "symbols が空です"},
                 status_code=400
             )
 
@@ -636,16 +638,15 @@ def third_screening(req: func.HttpRequest) -> func.HttpResponse:
                 "analysis": analysis
             })
 
-        return func.HttpResponse(
-            json.dumps({"results": results}, ensure_ascii=False),
-            mimetype="application/json",
+        return JSONResponse(
+            {"results": results},
             status_code=200
         )
 
     except Exception as e:
         logging.exception("third_screening error")
-        return func.HttpResponse(
-            json.dumps({"error": str(e)}),
+        return JSONResponse(
+            {"error": str(e)},
             status_code=500
         )
 
