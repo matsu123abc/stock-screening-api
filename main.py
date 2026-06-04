@@ -548,11 +548,7 @@ async def second_screening(body: SecondScreeningRequest):
         logging.exception("second_screening error")
         return JSONResponse({"error": str(e)}, status_code=500)
 
-
 # ==== PART3 ====
-# =========================
-# UI（HTML + JavaScript）
-# =========================
 @app.get("/", response_class=HTMLResponse)
 def index():
     return """
@@ -563,16 +559,16 @@ def index():
   <title>Stock AI Screening Viewer</title>
   <style>
     body { font-family: sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
     th, td { border: 1px solid #ccc; padding: 6px; }
     th { background: #eee; }
+    .chart-link { font-size: 20px; text-decoration: none; }
   </style>
 </head>
 <body>
 
 <h2>Stock AI Screening Viewer</h2>
 
-<!-- ①-B BLOB の CSV を選択して実行 -->
 <h3>①-B BLOB の CSV を選択して実行</h3>
 
 <select id="blobCsvList">
@@ -616,7 +612,12 @@ def index():
 
 <h3>② 結果表示</h3>
 <div id="loading"></div>
-<div id="result"></div>
+
+<h3>主要データ</h3>
+<div id="mainTable"></div>
+
+<h3>AI コメント一覧</h3>
+<div id="aiTable"></div>
 
 <h3>ログ</h3>
 <pre id="logArea" style="background:#f0f0f0; padding:10px; height:300px; overflow:auto;"></pre>
@@ -642,7 +643,6 @@ async function runBlobCSV() {
 
     const result = await response.json();
 
-    // ★ ログ表示
     if (result.logs) {
         document.getElementById("logArea").innerText = result.logs.join("\\n");
     }
@@ -666,41 +666,72 @@ async function loadResultJson(path) {
   const res = await fetch(url);
   const json = await res.json();
 
-  renderTable(json);
+  renderMainTable(json);
+  renderAiTable(json);
 }
 
-function renderTable(data) {
+function renderMainTable(data) {
   if (!data || data.length === 0) {
-    document.getElementById("result").innerHTML = "<p>スクリーニング通過銘柄なし</p>";
+    document.getElementById("mainTable").innerHTML = "<p>スクリーニング通過銘柄なし</p>";
     return;
   }
 
   let html = "<table><tr>"
     + "<th>symbol</th>"
+    + "<th>company</th>"
+    + "<th>market</th>"
     + "<th>close</th>"
-    + "<th>drop_rate</th>"
-    + "<th>reversal_rate</th>"
-    + "<th>reversal_strength</th>"
-    + "<th>volume_ratio</th>"
-    + "<th>slope_ema20</th>"
-    + "<th>gpt_score</th>"
+    + "<th>最初の反転日</th>"
+    + "<th>最新の反転日</th>"
+    + "<th>short_score</th>"
+    + "<th>judgement</th>"
+    + "<th>chart</th>"
+    + "<th>説明</th>"
     + "</tr>";
 
   for (const r of data) {
     html += `<tr>
       <td>${r.symbol}</td>
+      <td>${r.company_name || ""}</td>
+      <td>${r.market || ""}</td>
       <td>${r.close}</td>
-      <td>${r.drop_rate}</td>
-      <td>${r.reversal_rate}</td>
-      <td>${r.reversal_strength}</td>
-      <td>${r.volume_ratio}</td>
-      <td>${r.slope_ema20}</td>
-      <td>${r.gpt_score}</td>
+      <td>${r.first_reversal_date}</td>
+      <td>${r.last_reversal_date}</td>
+      <td>${r.short_score}</td>
+      <td>${r.gpt_judgement}</td>
+      <td><a class="chart-link" href="https://finance.yahoo.co.jp/quote/${r.symbol}" target="_blank">📈</a></td>
+      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
     </tr>`;
   }
 
   html += "</table>";
-  document.getElementById("result").innerHTML = html;
+  document.getElementById("mainTable").innerHTML = html;
+}
+
+function renderAiTable(data) {
+  if (!data || data.length === 0) {
+    document.getElementById("aiTable").innerHTML = "<p>AI コメントなし</p>";
+    return;
+  }
+
+  let html = "<table><tr>"
+    + "<th>symbol</th>"
+    + "<th>company</th>"
+    + "<th>AI コメント</th>"
+    + "<th>説明</th>"
+    + "</tr>";
+
+  for (const r of data) {
+    html += `<tr>
+      <td>${r.symbol}</td>
+      <td>${r.company_name || ""}</td>
+      <td>${r.gpt_comment}</td>
+      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
+    </tr>`;
+  }
+
+  html += "</table>";
+  document.getElementById("aiTable").innerHTML = html;
 }
 </script>
 
