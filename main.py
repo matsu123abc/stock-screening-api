@@ -426,25 +426,35 @@ async def screening_from_blob(body: BlobCSVRequest):
                     "logs": logs
                 }
 
-        # 銘柄コードを .T に変換（JSON は配列で保存）
-        symbols = [f"{code}.T" for code in df_csv["コード"]]
+        # コード → (銘柄名, 市場) のマップを作成
+        code_map = {
+            f"{row['コード']}.T": {
+                "company_name": row["銘柄名"],
+                "market": row["市場"],
+            }
+            for _, row in df_csv.iterrows()
+        }
 
+        # 銘柄コードを .T に変換して screening 実行
+        symbols = list(code_map.keys())
         screening_request = ScreeningRequest(symbols=symbols)
         screening_result = await screening(screening_request)
 
         results = screening_result.get("results", [])
         logs.extend(screening_result.get("logs", []))
 
-        # ★ CSV の銘柄名・市場を結果に付与
-        for i, r in enumerate(results):
-            r["company_name"] = df_csv.loc[i, "銘柄名"]
-            r["market"] = df_csv.loc[i, "市場"]
+        # ★ symbol ベースで company_name / market を正しく紐づけ
+        for r in results:
+            info = code_map.get(r["symbol"])
+            if info:
+                r["company_name"] = info["company_name"]
+                r["market"] = info["market"]
 
         if len(results) == 0:
             logs.append("該当銘柄がありませんでした。")
 
-        # Blob 保存（配列のまま）
-        result_container = os.getenv("RESULT_CONTAINER", "screening-results")
+        # 結果を Blob に保存
+        result_container = os.getenv("RESULT_CONTAINER", "results")
         today = datetime.now().strftime("%Y-%m-%d")
         output_blob_name = f"{today}/screening_{today}.json"
 
@@ -460,6 +470,7 @@ async def screening_from_blob(body: BlobCSVRequest):
 
         return {
             "saved_to": output_blob_name,
+            "results": results,
             "logs": logs
         }
 
