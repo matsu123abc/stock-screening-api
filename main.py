@@ -395,16 +395,20 @@ class BlobCSVRequest(BaseModel):
 # =========================
 # ★ screening_from_blob（①-B）：CSV→screening→Blob保存＋ログ
 # =========================
-@app.post("/api/screening_from_blob")
-async def screening_from_blob(body: BlobCSVRequest):
-    logs: List[str] = []
+@app.function_name(name="screening_from_blob")
+@app.route(route="screening_from_blob", methods=["POST"], auth_level="anonymous")
+def screening_from_blob(req: func.HttpRequest) -> func.HttpResponse:
+    logs = []
 
     try:
+        body = req.get_json()
+        blob_filename = body.get("blob_filename")
+
         connect_str = os.getenv("AzureWebJobsStorage")
         blob_service = BlobServiceClient.from_connection_string(connect_str)
 
         blob_container = "block-data"
-        blob_name = body.blob_filename
+        blob_name = blob_filename
 
         logs.append(f"[BLOB] loading CSV from blob: {blob_name}")
 
@@ -420,13 +424,12 @@ async def screening_from_blob(body: BlobCSVRequest):
         for col in required_cols:
             if col not in df_csv.columns:
                 logs.append(f"[ERROR] CSV に '{col}' 列がありません")
-                return {
-                    "saved_to": None,
-                    "results": [],
-                    "logs": logs
-                }
+                return func.HttpResponse(
+                    json.dumps({"saved_to": None, "results": [], "logs": logs}, ensure_ascii=False),
+                    mimetype="application/json"
+                )
 
-        # コード → (銘柄名, 市場) のマップを作成
+        # ★ symbol → company_name / market の辞書を作成
         code_map = {
             f"{row['コード']}.T": {
                 "company_name": row["銘柄名"],
@@ -435,25 +438,22 @@ async def screening_from_blob(body: BlobCSVRequest):
             for _, row in df_csv.iterrows()
         }
 
-        # 銘柄コードを .T に変換して screening 実行
+        # screening() を呼び出し
         symbols = list(code_map.keys())
         screening_request = ScreeningRequest(symbols=symbols)
-        screening_result = await screening(screening_request)
+        screening_result = asyncio.run(screening(screening_request))
 
         results = screening_result.get("results", [])
         logs.extend(screening_result.get("logs", []))
 
-        # ★ symbol ベースで company_name / market を正しく紐づけ
+        # ★ symbol ベースで正しく紐づけ
         for r in results:
             info = code_map.get(r["symbol"])
             if info:
                 r["company_name"] = info["company_name"]
                 r["market"] = info["market"]
 
-        if len(results) == 0:
-            logs.append("該当銘柄がありませんでした。")
-
-        # 結果を Blob に保存
+        # Blob 保存
         result_container = os.getenv("RESULT_CONTAINER", "results")
         today = datetime.now().strftime("%Y-%m-%d")
         output_blob_name = f"{today}/screening_{today}.json"
@@ -468,20 +468,18 @@ async def screening_from_blob(body: BlobCSVRequest):
 
         logs.append(f"[SAVE] results saved to blob: {output_blob_name}")
 
-        return {
-            "saved_to": output_blob_name,
-            "results": results,
-            "logs": logs
-        }
+        return func.HttpResponse(
+            json.dumps({"saved_to": output_blob_name, "results": results, "logs": logs}, ensure_ascii=False),
+            mimetype="application/json"
+        )
 
     except Exception as e:
-        logging.exception("screening_from_blob error")
         logs.append(f"[ERROR] screening_from_blob: {str(e)}")
-        return {
-            "saved_to": None,
-            "results": [],
-            "logs": logs
-        }
+        return func.HttpResponse(
+            json.dumps({"saved_to": None, "results": [], "logs": logs}, ensure_ascii=False),
+            mimetype="application/json",
+            status_code=500
+        )
 
 
 # =========================
