@@ -435,6 +435,11 @@ async def screening_from_blob(body: BlobCSVRequest):
         results = screening_result.get("results", [])
         logs.extend(screening_result.get("logs", []))
 
+        # ★ CSV の銘柄名・市場を結果に付与
+        for i, r in enumerate(results):
+            r["company_name"] = df_csv.loc[i, "銘柄名"]
+            r["market"] = df_csv.loc[i, "市場"]
+
         if len(results) == 0:
             logs.append("該当銘柄がありませんでした。")
 
