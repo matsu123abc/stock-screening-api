@@ -325,6 +325,20 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
         return None
 
 # =====  PART2 =====
+from typing import List, Any
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import os, io, json, logging
+from datetime import datetime
+import pandas as pd
+import yfinance as yf
+from azure.storage.blob import BlobServiceClient
+from openai import AzureOpenAI
+from fastapi.responses import HTMLResponse
+
+app = FastAPI()
+
 # =========================
 # ScreeningRequest
 # =========================
@@ -333,37 +347,34 @@ class ScreeningRequest(BaseModel):
 
 
 # =========================
-# ★ screening() を process_symbol ベースに完全置換（ログ対応）
+# ★ screening()：process_symbol ベース＋ログ収集
 # =========================
 @app.post("/api/screening")
 async def screening(body: ScreeningRequest):
     try:
         symbols = body.symbols
         results = []
-        logs = []   # ★ログ収集リスト
+        logs: List[str] = []
 
-        def log(msg):
+        def log(msg: str):
             print(msg)
-            logs.append(msg)   # ★ログを保存
+            logs.append(msg)
 
         for symbol in symbols:
             try:
-                # company_name / market は screening_from_blob で付与する
+                # company_name / market は process_symbol 内で解決される前提
                 r = process_symbol(
                     symbol=symbol,
-                    company_name="",   # 後で付与
-                    market="",         # 後で付与
+                    company_name="",
+                    market="",
                     log=log,
                     python_condition=None
                 )
-
                 if r is not None:
                     results.append(r)
-
             except Exception as e:
                 log(f"[ERROR] screening {symbol}: {e}")
 
-        # ★ スクリーニング通過ゼロならログ追加
         if len(results) == 0:
             logs.append("該当銘柄がありませんでした。")
 
@@ -382,11 +393,11 @@ class BlobCSVRequest(BaseModel):
 
 
 # =========================
-# ★ screening_from_blob（①-B）ログ対応 + 銘柄名/市場付与
+# ★ screening_from_blob（①-B）：CSV→screening→Blob保存＋ログ
 # =========================
 @app.post("/api/screening_from_blob")
 async def screening_from_blob(body: BlobCSVRequest):
-    logs = []   # ★ 必ず最初に定義
+    logs: List[str] = []
 
     try:
         connect_str = os.getenv("AzureWebJobsStorage")
@@ -415,33 +426,19 @@ async def screening_from_blob(body: BlobCSVRequest):
                     "logs": logs
                 }
 
-        # ★ CSV の銘柄名・市場を保持
-        symbols = []
-        company_names = []
-        markets = []
+        # 銘柄コードを .T に変換（JSON は配列で保存）
+        symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        for idx, row in df_csv.iterrows():
-            symbols.append(f"{row['コード']}.T")
-            company_names.append(row["銘柄名"])
-            markets.append(row["市場"])
-
-        # ★ screening() を呼ぶ
         screening_request = ScreeningRequest(symbols=symbols)
         screening_result = await screening(screening_request)
 
-        results = screening_result["results"]
-        logs.extend(screening_result["logs"])
+        results = screening_result.get("results", [])
+        logs.extend(screening_result.get("logs", []))
 
-        # ★ ここで company_name / market を結果に付与
-        for i, r in enumerate(results):
-            r["company_name"] = company_names[i]
-            r["market"] = markets[i]
-
-        # ★ スクリーニング通過ゼロならログ追加
         if len(results) == 0:
             logs.append("該当銘柄がありませんでした。")
 
-        # Blob 保存
+        # Blob 保存（配列のまま）
         result_container = os.getenv("RESULT_CONTAINER", "screening-results")
         today = datetime.now().strftime("%Y-%m-%d")
         output_blob_name = f"{today}/screening_{today}.json"
@@ -458,11 +455,11 @@ async def screening_from_blob(body: BlobCSVRequest):
 
         return {
             "saved_to": output_blob_name,
-            "results": results,
             "logs": logs
         }
 
     except Exception as e:
+        logging.exception("screening_from_blob error")
         logs.append(f"[ERROR] screening_from_blob: {str(e)}")
         return {
             "saved_to": None,
@@ -682,7 +679,7 @@ async function runBlobCSV() {
 async function loadResultJson(path) {
   const url = RESULT_BLOB_BASE + path;
   const res = await fetch(url);
-  const json = await res.json();
+  const json = await res.json();  // ★ ここで配列を受け取る（添付 JSON と同じ）
 
   renderMainTable(json);
   renderAiTable(json);
