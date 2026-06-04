@@ -772,7 +772,7 @@ async function runSecondScreening() {
     return;
   }
 
-  const response = await fetch("/api/second_screening", {
+  const response = await fetch("/second_screening", {   // ★ 修正ポイント
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ results: latestResults })
