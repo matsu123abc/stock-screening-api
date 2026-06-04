@@ -639,11 +639,17 @@ def index():
 <h3>AI コメント一覧</h3>
 <div id="aiTable"></div>
 
+<h3>③ 二次スクリーニング</h3>
+<button onclick="runSecondScreening()">二次スクリーニングを実行</button>
+<div id="secondTable"></div>
+
 <h3>ログ</h3>
 <pre id="logArea" style="background:#f0f0f0; padding:10px; height:300px; overflow:auto;"></pre>
 
 <script>
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
+
+let latestResults = [];  // ★ 一次スクリーニング結果を保持
 
 async function runBlobCSV() {
   const filename = document.getElementById("blobCsvList").value;
@@ -684,7 +690,9 @@ async function runBlobCSV() {
 async function loadResultJson(path) {
   const url = RESULT_BLOB_BASE + path;
   const res = await fetch(url);
-  const json = await res.json();  // ★ ここで配列を受け取る（添付 JSON と同じ）
+  const json = await res.json();
+
+  latestResults = json;  // ★ 二次スクリーニング用に保存
 
   renderMainTable(json);
   renderAiTable(json);
@@ -752,6 +760,55 @@ function renderAiTable(data) {
 
   html += "</table>";
   document.getElementById("aiTable").innerHTML = html;
+}
+
+async function runSecondScreening() {
+  if (!latestResults || latestResults.length === 0) {
+    alert("一次スクリーニング結果がありません。");
+    return;
+  }
+
+  const response = await fetch("/api/second_screening", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ results: latestResults })
+  });
+
+  const data = await response.json();
+  renderSecondTable(data.second_screening);
+}
+
+function renderSecondTable(data) {
+  if (!data || data.length === 0) {
+    document.getElementById("secondTable").innerHTML =
+      "<p>二次スクリーニング通過銘柄なし</p>";
+    return;
+  }
+
+  let html = "<table><tr>"
+    + "<th>symbol</th>"
+    + "<th>company</th>"
+    + "<th>market</th>"
+    + "<th>short_score</th>"
+    + "<th>drop_from_high</th>"
+    + "<th>rebound_from_low</th>"
+    + "<th>説明</th>"
+    + "</tr>";
+
+  for (const r of data) {
+    html += `<tr>
+      <td>${r.symbol}</td>
+      <td>${r.company_name || ""}</td>
+      <td>${r.market || ""}</td>
+      <td>${r.short_score}</td>
+      <td>${r.drop_from_high_pct}</td>
+      <td>${r.rebound_from_low_pct}</td>
+      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
+    </tr>`;
+  }
+
+  html += "</table>";
+  document.getElementById("secondTable").innerHTML = html;
 }
 </script>
 
