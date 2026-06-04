@@ -395,20 +395,16 @@ class BlobCSVRequest(BaseModel):
 # =========================
 # ★ screening_from_blob（①-B）：CSV→screening→Blob保存＋ログ
 # =========================
-@app.function_name(name="screening_from_blob")
-@app.route(route="screening_from_blob", methods=["POST"], auth_level="anonymous")
-def screening_from_blob(req: func.HttpRequest) -> func.HttpResponse:
-    logs = []
+@app.post("/api/screening_from_blob")
+async def screening_from_blob(body: BlobCSVRequest):
+    logs: List[str] = []
 
     try:
-        body = req.get_json()
-        blob_filename = body.get("blob_filename")
-
         connect_str = os.getenv("AzureWebJobsStorage")
         blob_service = BlobServiceClient.from_connection_string(connect_str)
 
         blob_container = "block-data"
-        blob_name = blob_filename
+        blob_name = body.blob_filename
 
         logs.append(f"[BLOB] loading CSV from blob: {blob_name}")
 
@@ -424,37 +420,31 @@ def screening_from_blob(req: func.HttpRequest) -> func.HttpResponse:
         for col in required_cols:
             if col not in df_csv.columns:
                 logs.append(f"[ERROR] CSV に '{col}' 列がありません")
-                return func.HttpResponse(
-                    json.dumps({"saved_to": None, "results": [], "logs": logs}, ensure_ascii=False),
-                    mimetype="application/json"
-                )
+                return {
+                    "saved_to": None,
+                    "results": [],
+                    "logs": logs
+                }
 
-        # ★ symbol → company_name / market の辞書を作成
-        code_map = {
-            f"{row['コード']}.T": {
-                "company_name": row["銘柄名"],
-                "market": row["市場"],
-            }
-            for _, row in df_csv.iterrows()
-        }
+        # 銘柄コードを .T に変換（JSON は配列で保存）
+        symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        # screening() を呼び出し
-        symbols = list(code_map.keys())
         screening_request = ScreeningRequest(symbols=symbols)
-        screening_result = asyncio.run(screening(screening_request))
+        screening_result = await screening(screening_request)
 
         results = screening_result.get("results", [])
         logs.extend(screening_result.get("logs", []))
 
-        # ★ symbol ベースで正しく紐づけ
-        for r in results:
-            info = code_map.get(r["symbol"])
-            if info:
-                r["company_name"] = info["company_name"]
-                r["market"] = info["market"]
+        # ★ CSV の銘柄名・市場を結果に付与
+        for i, r in enumerate(results):
+            r["company_name"] = df_csv.loc[i, "銘柄名"]
+            r["market"] = df_csv.loc[i, "市場"]
 
-        # Blob 保存
-        result_container = os.getenv("RESULT_CONTAINER", "results")
+        if len(results) == 0:
+            logs.append("該当銘柄がありませんでした。")
+
+        # Blob 保存（配列のまま）
+        result_container = os.getenv("RESULT_CONTAINER", "screening-results")
         today = datetime.now().strftime("%Y-%m-%d")
         output_blob_name = f"{today}/screening_{today}.json"
 
@@ -468,18 +458,19 @@ def screening_from_blob(req: func.HttpRequest) -> func.HttpResponse:
 
         logs.append(f"[SAVE] results saved to blob: {output_blob_name}")
 
-        return func.HttpResponse(
-            json.dumps({"saved_to": output_blob_name, "results": results, "logs": logs}, ensure_ascii=False),
-            mimetype="application/json"
-        )
+        return {
+            "saved_to": output_blob_name,
+            "logs": logs
+        }
 
     except Exception as e:
+        logging.exception("screening_from_blob error")
         logs.append(f"[ERROR] screening_from_blob: {str(e)}")
-        return func.HttpResponse(
-            json.dumps({"saved_to": None, "results": [], "logs": logs}, ensure_ascii=False),
-            mimetype="application/json",
-            status_code=500
-        )
+        return {
+            "saved_to": None,
+            "results": [],
+            "logs": logs
+        }
 
 
 # =========================
@@ -648,20 +639,11 @@ def index():
 <h3>AI コメント一覧</h3>
 <div id="aiTable"></div>
 
-<h3>②-B 二次スクリーニング結果</h3>
-<button onclick="runSecondScreening()">二次スクリーニングを実行</button>
-<div id="secondTable"></div>
-
-<h3>②-C 二次スクリーニング指標一覧</h3>
-<div id="indicatorTable"></div>
-
 <h3>ログ</h3>
 <pre id="logArea" style="background:#f0f0f0; padding:10px; height:300px; overflow:auto;"></pre>
 
 <script>
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
-
-let latestResults = [];  // 一次スクリーニング結果を保持
 
 async function runBlobCSV() {
   const filename = document.getElementById("blobCsvList").value;
@@ -702,13 +684,10 @@ async function runBlobCSV() {
 async function loadResultJson(path) {
   const url = RESULT_BLOB_BASE + path;
   const res = await fetch(url);
-  const json = await res.json();
-
-  latestResults = json;  // 二次スクリーニング用に保存
+  const json = await res.json();  // ★ ここで配列を受け取る（添付 JSON と同じ）
 
   renderMainTable(json);
   renderAiTable(json);
-  renderIndicatorTable(json);  // ★ ②-C 指標一覧を表示
 }
 
 function renderMainTable(data) {
@@ -773,96 +752,6 @@ function renderAiTable(data) {
 
   html += "</table>";
   document.getElementById("aiTable").innerHTML = html;
-}
-
-async function runSecondScreening() {
-  if (!latestResults || latestResults.length === 0) {
-    alert("一次スクリーニング結果がありません。");
-    return;
-  }
-
-  const response = await fetch("/second_screening", {   // ★ 修正ポイント
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ results: latestResults })
-  });
-
-  const data = await response.json();
-  renderSecondTable(data.second_screening);
-}
-
-function renderSecondTable(data) {
-  if (!data || data.length === 0) {
-    document.getElementById("secondTable").innerHTML =
-      "<p>二次スクリーニング結果（0 件）</p>";
-    return;
-  }
-
-  let html = "<p>二次スクリーニング結果（" + data.length + " 件）</p>";
-  html += "<table><tr>"
-    + "<th>symbol</th>"
-    + "<th>company</th>"
-    + "<th>market</th>"
-    + "<th>close</th>"
-    + "<th>short_score</th>"
-    + "<th>mid_score</th>"
-    + "<th>judgement</th>"
-    + "<th>chart</th>"
-    + "<th>説明</th>"
-    + "</tr>";
-
-  for (const r of data) {
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.company_name || ""}</td>
-      <td>${r.market || ""}</td>
-      <td>${r.close}</td>
-      <td>${r.short_score}</td>
-      <td>${r.mid_score}</td>
-      <td>${r.gpt_judgement}</td>
-      <td><a class="chart-link" href="https://finance.yahoo.co.jp/quote/${r.symbol}" target="_blank">📈</a></td>
-      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
-    </tr>`;
-  }
-
-  html += "</table>";
-  document.getElementById("secondTable").innerHTML = html;
-}
-
-function renderIndicatorTable(data) {
-  if (!data || data.length === 0) {
-    document.getElementById("indicatorTable").innerHTML =
-      "<p>二次スクリーニング指標一覧（0 件）</p>";
-    return;
-  }
-
-  let html = "<p>二次スクリーニング指標一覧（" + data.length + " 件）</p>";
-  html += "<table><tr>"
-    + "<th>symbol</th>"
-    + "<th>drop_from_high_pct</th>"
-    + "<th>rebound_from_low_pct</th>"
-    + "<th>ema20_vs_ema50</th>"
-    + "<th>ema50_vs_ema200</th>"
-    + "<th>price_vs_ema20_pct</th>"
-    + "<th>vol_vs_ma20</th>"
-    + "<th>atr_ratio</th>"
-    + "</tr>";
-
-  for (const r of data) {
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.drop_from_high_pct}</td>
-      <td>${r.rebound_from_low_pct}</td>
-      <td>${r.ema20_vs_ema50}</td>
-      <td>${r.ema50_vs_ema200}</td>
-      <td>${r.price_vs_ema20_pct}</td>
-      <td>${r.vol_vs_ma20}</td>
-      <td>${r.atr_ratio}</td>
-    </tr>`;
-  }
-
-  html += "</table>";
-  document.getElementById("indicatorTable").innerHTML = html;
 }
 </script>
 
