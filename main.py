@@ -713,8 +713,8 @@ function renderMainTable(data) {
       <td>${r.company_name || ""}</td>
       <td>${r.market || ""}</td>
       <td>${r.close}</td>
-      <td>${r.first_reversal_date}</td>
-      <td>${r.last_reversal_date}</td>
+      <td>${r.first_reversal_date || ""}</td>
+      <td>${r.last_reversal_date || ""}</td>
       <td>${r.short_score}</td>
       <td>${r.gpt_judgement}</td>
       <td><a class="chart-link" href="https://finance.yahoo.co.jp/quote/${r.symbol}" target="_blank">📈</a></td>
@@ -743,7 +743,7 @@ function renderAiTable(data) {
     html += `<tr>
       <td>${r.symbol}</td>
       <td>${r.company_name || ""}</td>
-      <td>${r.gpt_comment}</td>
+      <td>${r.gpt_comment || ""}</td>
       <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
     </tr>`;
   }
