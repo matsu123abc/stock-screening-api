@@ -348,13 +348,11 @@ async def screening(body: ScreeningRequest):
 
         for symbol in symbols:
             try:
-                company_name = ""
-                market = ""
-
+                # company_name / market は screening_from_blob で付与する
                 r = process_symbol(
                     symbol=symbol,
-                    company_name=company_name,
-                    market=market,
+                    company_name="",   # 後で付与
+                    market="",         # 後で付与
                     log=log,
                     python_condition=None
                 )
@@ -384,7 +382,7 @@ class BlobCSVRequest(BaseModel):
 
 
 # =========================
-# ★ screening_from_blob（①-B）ログ対応
+# ★ screening_from_blob（①-B）ログ対応 + 銘柄名/市場付与
 # =========================
 @app.post("/api/screening_from_blob")
 async def screening_from_blob(body: BlobCSVRequest):
@@ -417,13 +415,27 @@ async def screening_from_blob(body: BlobCSVRequest):
                     "logs": logs
                 }
 
-        symbols = [f"{code}.T" for code in df_csv["コード"]]
+        # ★ CSV の銘柄名・市場を保持
+        symbols = []
+        company_names = []
+        markets = []
 
+        for idx, row in df_csv.iterrows():
+            symbols.append(f"{row['コード']}.T")
+            company_names.append(row["銘柄名"])
+            markets.append(row["市場"])
+
+        # ★ screening() を呼ぶ
         screening_request = ScreeningRequest(symbols=symbols)
         screening_result = await screening(screening_request)
 
         results = screening_result["results"]
         logs.extend(screening_result["logs"])
+
+        # ★ ここで company_name / market を結果に付与
+        for i, r in enumerate(results):
+            r["company_name"] = company_names[i]
+            r["market"] = markets[i]
 
         # ★ スクリーニング通過ゼロならログ追加
         if len(results) == 0:
