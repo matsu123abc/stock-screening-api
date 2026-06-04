@@ -599,6 +599,9 @@ def index():
 <div id="loading"></div>
 <div id="result"></div>
 
+<h3>ログ</h3>
+<pre id="logArea" style="background:#f0f0f0; padding:10px; height:300px; overflow:auto;"></pre>
+
 <script>
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/screening-results/";
 
@@ -619,6 +622,11 @@ async function runBlobCSV() {
     );
 
     const result = await response.json();
+
+    // ★ ログ表示
+    if (result.logs) {
+        document.getElementById("logArea").innerText = result.logs.join("\\n");
+    }
 
     if (!result.saved_to) {
       document.getElementById("loading").innerText = "エラー";
