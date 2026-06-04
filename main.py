@@ -388,7 +388,7 @@ class BlobCSVRequest(BaseModel):
 # =========================
 @app.post("/api/screening_from_blob")
 async def screening_from_blob(body: BlobCSVRequest):
-    logs = []   # ★ ここで必ず定義しておく（重要）
+    logs = []   # ★ 必ず最初に定義
 
     try:
         connect_str = os.getenv("AzureWebJobsStorage")
@@ -411,22 +411,25 @@ async def screening_from_blob(body: BlobCSVRequest):
         for col in required_cols:
             if col not in df_csv.columns:
                 logs.append(f"[ERROR] CSV に '{col}' 列がありません")
-                return {"error": f"CSV に '{col}' 列がありません", "logs": logs}
+                return {
+                    "saved_to": None,
+                    "results": [],
+                    "logs": logs
+                }
 
         symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        # ★ screening() を呼ぶ
         screening_request = ScreeningRequest(symbols=symbols)
         screening_result = await screening(screening_request)
 
         results = screening_result["results"]
-        logs.extend(screening_result["logs"])  # ★ ログを統合
+        logs.extend(screening_result["logs"])
 
-        # ★ スクリーニング通過ゼロならログ追加（念押し）
+        # ★ スクリーニング通過ゼロならログ追加
         if len(results) == 0:
             logs.append("該当銘柄がありませんでした。")
 
-        # 結果を Blob に保存
+        # Blob 保存
         result_container = os.getenv("RESULT_CONTAINER", "screening-results")
         today = datetime.now().strftime("%Y-%m-%d")
         output_blob_name = f"{today}/screening_{today}.json"
@@ -448,9 +451,12 @@ async def screening_from_blob(body: BlobCSVRequest):
         }
 
     except Exception as e:
-        logging.exception("screening_from_blob error")
-        logs.append(f"[ERROR] screening_from_blob: {str(e)}")  # ★ ここでも logs を使える
-        return {"error": str(e), "logs": logs}
+        logs.append(f"[ERROR] screening_from_blob: {str(e)}")
+        return {
+            "saved_to": None,
+            "results": [],
+            "logs": logs
+        }
 
 
 # =========================
