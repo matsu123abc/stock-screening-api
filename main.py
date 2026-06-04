@@ -568,6 +568,87 @@ async def second_screening(body: SecondScreeningRequest):
         logging.exception("second_screening error")
         return JSONResponse({"error": str(e)}, status_code=500)
 
+# =========================
+# 3次スクリーニング（企業業績 × AI 分析版）
+# =========================
+@app.function_name(name="third_screening")
+@app.route(route="third_screening", methods=["POST"], auth_level="anonymous")
+def third_screening(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        body = req.get_json()
+        symbols = body.get("symbols", [])
+
+        if not symbols:
+            return func.HttpResponse(
+                json.dumps({"error": "symbols が空です"}),
+                status_code=400
+            )
+
+        results = []
+
+        for sym in symbols:
+            ticker = yf.Ticker(sym)
+            info = ticker.info
+
+            fundamentals = {
+                "売上高": info.get("totalRevenue"),
+                "営業利益率": info.get("operatingMargins"),
+                "純利益率": info.get("profitMargins"),
+                "EPS": info.get("trailingEps"),
+                "PER": info.get("trailingPE"),
+                "PBR": info.get("priceToBook"),
+                "ROE": info.get("returnOnEquity"),
+                "売上成長率": info.get("revenueGrowth"),
+                "利益成長率": info.get("earningsGrowth"),
+                "フリーCF": info.get("freeCashflow"),
+                "負債総額": info.get("totalDebt"),
+                "現金": info.get("totalCash"),
+            }
+
+            client = AzureOpenAI(
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+            )
+
+            prompt = f"""
+あなたはプロの株式アナリストです。
+以下の企業業績データをもとに、企業の強み・弱み・リスク・総合評価を簡潔に説明してください。
+
+銘柄: {sym}
+業績データ:
+{fundamentals}
+
+日本語で、投資家向けに分かりやすく説明してください。
+"""
+
+            ai_res = client.chat.completions.create(
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+            )
+
+            analysis = ai_res.choices[0].message.content.strip()
+
+            results.append({
+                "symbol": sym,
+                "fundamentals": fundamentals,
+                "analysis": analysis
+            })
+
+        return func.HttpResponse(
+            json.dumps({"results": results}, ensure_ascii=False),
+            mimetype="application/json",
+            status_code=200
+        )
+
+    except Exception as e:
+        logging.exception("third_screening error")
+        return func.HttpResponse(
+            json.dumps({"error": str(e)}),
+            status_code=500
+        )
+
 # ==== PART3 ====
 @app.get("/", response_class=HTMLResponse)
 def index():
@@ -646,13 +727,18 @@ def index():
 <h3>②-C 二次スクリーニング指標一覧</h3>
 <div id="indicatorTable"></div>
 
+<h3>③ 三次スクリーニング（企業業績 × AI 分析）</h3>
+<button onclick="runThirdScreening()">三次スクリーニングを実行</button>
+<div id="thirdTable"></div>
+
 <h3>ログ</h3>
 <pre id="logArea" style="background:#f0f0f0; padding:10px; height:300px; overflow:auto;"></pre>
 
 <script>
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
 
-let latestResults = [];  // 一次スクリーニング結果を保持
+let latestResults = [];   // 一次スクリーニング結果
+let latestSecond = [];    // 二次スクリーニング結果
 
 async function runBlobCSV() {
   const filename = document.getElementById("blobCsvList").value;
@@ -695,11 +781,11 @@ async function loadResultJson(path) {
   const res = await fetch(url);
   const json = await res.json();
 
-  latestResults = json;  // 二次スクリーニング用に保存
+  latestResults = json;
 
   renderMainTable(json);
   renderAiTable(json);
-  renderIndicatorTable(json);  // ★ ②-C 指標一覧を表示
+  renderIndicatorTable(json);
 }
 
 function renderMainTable(data) {
@@ -772,14 +858,15 @@ async function runSecondScreening() {
     return;
   }
 
-  const response = await fetch("/second_screening", {   // ★ 修正ポイント
+  const response = await fetch("/second_screening", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ results: latestResults })
   });
 
   const data = await response.json();
-  renderSecondTable(data.second_screening);
+  latestSecond = data.second_screening;
+  renderSecondTable(latestSecond);
 }
 
 function renderSecondTable(data) {
@@ -855,6 +942,51 @@ function renderIndicatorTable(data) {
   html += "</table>";
   document.getElementById("indicatorTable").innerHTML = html;
 }
+
+async function runThirdScreening() {
+  if (!latestSecond || latestSecond.length === 0) {
+    alert("二次スクリーニング結果がありません。");
+    return;
+  }
+
+  const symbols = latestSecond.map(r => r.symbol);
+
+  const response = await fetch("/third_screening", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbols })
+  });
+
+  const data = await response.json();
+  renderThirdTable(data.results);
+}
+
+function renderThirdTable(data) {
+  if (!data || data.length === 0) {
+    document.getElementById("thirdTable").innerHTML =
+      "<p>三次スクリーニング結果（0 件）</p>";
+    return;
+  }
+
+  let html = "<p>三次スクリーニング結果（" + data.length + " 件）</p>";
+  html += "<table><tr>"
+    + "<th>symbol</th>"
+    + "<th>analysis</th>"
+    + "<th>fundamentals</th>"
+    + "</tr>";
+
+  for (const r of data) {
+    html += `<tr>
+      <td>${r.symbol}</td>
+      <td>${r.analysis}</td>
+      <td><pre>${JSON.stringify(r.fundamentals, null, 2)}</pre></td>
+    </tr>`;
+  }
+
+  html += "</table>";
+  document.getElementById("thirdTable").innerHTML = html;
+}
+
 </script>
 
 </body>
