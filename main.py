@@ -388,6 +388,8 @@ class BlobCSVRequest(BaseModel):
 # =========================
 @app.post("/api/screening_from_blob")
 async def screening_from_blob(body: BlobCSVRequest):
+    logs = []   # ★ ここで必ず定義しておく（重要）
+
     try:
         connect_str = os.getenv("AzureWebJobsStorage")
         blob_service = BlobServiceClient.from_connection_string(connect_str)
@@ -395,8 +397,6 @@ async def screening_from_blob(body: BlobCSVRequest):
         blob_container = "block-data"
         blob_name = body.blob_filename
 
-        # ★ ログ収集
-        logs = []
         logs.append(f"[BLOB] loading CSV from blob: {blob_name}")
 
         blob_client = blob_service.get_blob_client(
@@ -415,12 +415,16 @@ async def screening_from_blob(body: BlobCSVRequest):
 
         symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        # ★ screening() を呼ぶ（ログも受け取る）
+        # ★ screening() を呼ぶ
         screening_request = ScreeningRequest(symbols=symbols)
         screening_result = await screening(screening_request)
 
         results = screening_result["results"]
-        logs.extend(screening_result["logs"])   # ★ログを統合
+        logs.extend(screening_result["logs"])  # ★ ログを統合
+
+        # ★ スクリーニング通過ゼロならログ追加（念押し）
+        if len(results) == 0:
+            logs.append("該当銘柄がありませんでした。")
 
         # 結果を Blob に保存
         result_container = os.getenv("RESULT_CONTAINER", "screening-results")
@@ -440,11 +444,12 @@ async def screening_from_blob(body: BlobCSVRequest):
         return {
             "saved_to": output_blob_name,
             "results": results,
-            "logs": logs   # ★ログを返す
+            "logs": logs
         }
 
     except Exception as e:
         logging.exception("screening_from_blob error")
+        logs.append(f"[ERROR] screening_from_blob: {str(e)}")  # ★ ここでも logs を使える
         return {"error": str(e), "logs": logs}
 
 
