@@ -333,20 +333,21 @@ class ScreeningRequest(BaseModel):
 
 
 # =========================
-# ★ screening() を process_symbol ベースに完全置換
+# ★ screening() を process_symbol ベースに完全置換（ログ対応）
 # =========================
 @app.post("/api/screening")
 async def screening(body: ScreeningRequest):
     try:
         symbols = body.symbols
         results = []
+        logs = []   # ★ログ収集リスト
 
         def log(msg):
             print(msg)
+            logs.append(msg)   # ★ログを保存
 
         for symbol in symbols:
             try:
-                # 銘柄名・市場は空欄で OK（process_symbol は必須ではない）
                 company_name = ""
                 market = ""
 
@@ -355,17 +356,20 @@ async def screening(body: ScreeningRequest):
                     company_name=company_name,
                     market=market,
                     log=log,
-                    python_condition=None  # 最新版では python_condition は使用しない
+                    python_condition=None
                 )
 
-                # ★ process_symbol が None → スクリーニング不合格
                 if r is not None:
                     results.append(r)
 
             except Exception as e:
                 log(f"[ERROR] screening {symbol}: {e}")
 
-        return {"results": results}
+        # ★ スクリーニング通過ゼロならログ追加
+        if len(results) == 0:
+            logs.append("該当銘柄がありませんでした。")
+
+        return {"results": results, "logs": logs}
 
     except Exception as e:
         logging.exception("screening error")
@@ -380,7 +384,7 @@ class BlobCSVRequest(BaseModel):
 
 
 # =========================
-# ★ screening_from_blob（①-B）
+# ★ screening_from_blob（①-B）ログ対応
 # =========================
 @app.post("/api/screening_from_blob")
 async def screening_from_blob(body: BlobCSVRequest):
@@ -390,6 +394,10 @@ async def screening_from_blob(body: BlobCSVRequest):
 
         blob_container = "block-data"
         blob_name = body.blob_filename
+
+        # ★ ログ収集
+        logs = []
+        logs.append(f"[BLOB] loading CSV from blob: {blob_name}")
 
         blob_client = blob_service.get_blob_client(
             container=blob_container,
@@ -402,15 +410,17 @@ async def screening_from_blob(body: BlobCSVRequest):
         required_cols = ["コード", "銘柄名", "市場"]
         for col in required_cols:
             if col not in df_csv.columns:
-                return {"error": f"CSV に '{col}' 列がありません"}
+                logs.append(f"[ERROR] CSV に '{col}' 列がありません")
+                return {"error": f"CSV に '{col}' 列がありません", "logs": logs}
 
-        # 銘柄コードを .T に変換
         symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        # screening() を呼ぶ（process_symbol ベース）
+        # ★ screening() を呼ぶ（ログも受け取る）
         screening_request = ScreeningRequest(symbols=symbols)
         screening_result = await screening(screening_request)
+
         results = screening_result["results"]
+        logs.extend(screening_result["logs"])   # ★ログを統合
 
         # 結果を Blob に保存
         result_container = os.getenv("RESULT_CONTAINER", "screening-results")
@@ -425,14 +435,17 @@ async def screening_from_blob(body: BlobCSVRequest):
         json_text = json.dumps(results, ensure_ascii=False, indent=2)
         result_blob.upload_blob(json_text, overwrite=True)
 
+        logs.append(f"[SAVE] results saved to blob: {output_blob_name}")
+
         return {
             "saved_to": output_blob_name,
-            "results": results
+            "results": results,
+            "logs": logs   # ★ログを返す
         }
 
     except Exception as e:
         logging.exception("screening_from_blob error")
-        return {"error": str(e)}
+        return {"error": str(e), "logs": logs}
 
 
 # =========================
@@ -529,6 +542,7 @@ async def second_screening(body: SecondScreeningRequest):
     except Exception as e:
         logging.exception("second_screening error")
         return JSONResponse({"error": str(e)}, status_code=500)
+
 
 # ==== PART3 ====
 # =========================
