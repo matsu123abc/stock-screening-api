@@ -638,7 +638,7 @@ def index():
 <pre id="logArea" style="background:#f0f0f0; padding:10px; height:300px; overflow:auto;"></pre>
 
 <script>
-const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/screening-results/";
+const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
 
 async function runBlobCSV() {
   const filename = document.getElementById("blobCsvList").value;
