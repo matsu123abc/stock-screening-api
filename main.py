@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import List, Any
 import os
@@ -14,10 +14,6 @@ import io
 import json
 
 app = FastAPI()
-
-# =========================
-# 共通ユーティリティ
-# =========================
 
 def safe_float(x):
     try:
@@ -42,37 +38,6 @@ def calc_atr(df, window=14):
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.rolling(window).mean()
     return atr
-
-
-# =========================
-# ★ append_log（完全統合版）
-# =========================
-
-def append_log(container_client, log_blob_path: str, message: str):
-    """
-    Azure Blob Storage にログを追記保存する（リアルタイムログ用）
-    """
-    try:
-        blob_client = container_client.get_blob_client(log_blob_path)
-
-        # 既存ログを取得
-        try:
-            old = blob_client.download_blob().readall().decode("utf-8")
-        except Exception:
-            old = ""
-
-        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        new_text = old + f"[{ts}] {message}\n"
-
-        blob_client.upload_blob(new_text, overwrite=True)
-
-    except Exception as e:
-        print("log append error:", e)
-
-
-# =========================
-# GPT スコア
-# =========================
 
 def gpt_score(symbol, name, price, market_cap,
               drop_rate, reversal_rate, reversal_strength,
@@ -132,24 +97,13 @@ ATR(14): {atr}
             "comment": f"GPTエラー: {str(e)}"
         }
 
-
-# =========================
-# ★ process_symbol（ログ関数 log_fn を受け取る）
-# =========================
-
 def process_symbol(symbol, company_name, market, log, python_condition=None):
     try:
-        log(f"[DOWNLOAD-START] {symbol}: downloading 180d/1d data")
-
         df = yf.download(symbol, period="180d", interval="1d")
 
         if df is None or df.empty:
-            log(f"[DOWNLOAD-WARN] {symbol}: no daily data returned")
             return None
 
-        log(f"[DOWNLOAD-END] {symbol}: {len(df)} rows downloaded")
-
-        # --- market cap ---
         try:
             ticker = yf.Ticker(symbol)
             fi = getattr(ticker, "fast_info", None)
@@ -166,7 +120,6 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
         except:
             market_cap = None
 
-        # --- indicators ---
         df["EMA20"] = ema(df["Close"], 20)
         df["EMA50"] = ema(df["Close"], 50)
         df["EMA200"] = ema(df["Close"], 200)
@@ -174,7 +127,6 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
         df["vol_ma20"] = df["Volume"].rolling(window=20).mean()
 
         if len(df) < 25:
-            log(f"[SKIP] {symbol}: insufficient data for slope check")
             return None
 
         ema20_now = df["EMA20"].iloc[-1]
@@ -183,13 +135,9 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
         slope_prev = safe_float(df["EMA20"].iloc[-6] - df["EMA20"].iloc[-11])
         slope_now = safe_float(ema20_now - ema20_prev)
 
-        is_reversal = (slope_prev < 0 and slope_now > 0)
-
-        if not is_reversal:
-            log(f"[NO-REV] {symbol}: slope_prev={slope_prev:.4f}, slope_now={slope_now:.4f}")
+        if not (slope_prev < 0 and slope_now > 0):
             return None
 
-        # --- 反転日 ---
         first_reversal_date = None
         last_reversal_date = None
 
@@ -202,9 +150,6 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
                     first_reversal_date = df.index[i].strftime("%Y-%m-%d")
                 last_reversal_date = df.index[i].strftime("%Y-%m-%d")
 
-        log(f"[REVERSAL] {symbol}: first={first_reversal_date}, last={last_reversal_date}")
-
-        # --- 直近120日の peak / bottom ---
         recent = df.tail(120)
         peak_price = safe_float(recent["High"].max())
         bottom_price = safe_float(recent["Low"].min())
@@ -249,28 +194,24 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
             "company_name": company_name,
             "market": market,
             "close": close_price,
-
             "EMA20": ema20,
             "EMA50": ema50,
             "EMA200": ema200,
             "ATR": atr,
-
             "drop_rate": drop_rate,
             "reversal_rate": reversal_rate,
             "reversal_strength": reversal_strength,
             "market_cap": market_cap,
             "slope_ema20": slope_now,
             "volume_ratio": volume_ratio,
-
             "first_reversal_date": first_reversal_date,
             "last_reversal_date": last_reversal_date,
-
             "short_score": short_score,
             "gpt_score": gpt.get("score"),
             "gpt_judgement": gpt.get("judgement"),
             "gpt_comment": gpt.get("comment"),
 
-            # ★★★ 二次スクリーニング指標（追加）★★★
+            # 二次スクリーニング指標
             "drop_from_high_pct": drop_rate,
             "rebound_from_low_pct": reversal_rate,
             "ema20_vs_ema50": safe_float(ema20 - ema50),
@@ -282,14 +223,8 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
             "passed_python_condition": True
         }
 
-    except Exception as e:
-        log(f"[ERROR] {symbol} processing error: {e}")
+    except Exception:
         return None
-
-
-# =========================
-# ★ /api/screening_from_blob（リアルタイムログ対応）
-# =========================
 
 class ScreeningFromBlobRequest(BaseModel):
     blob_filename: str
@@ -299,60 +234,42 @@ async def screening_from_blob(req: ScreeningFromBlobRequest):
 
     blob_filename = req.blob_filename
 
-    # Blob Service
     blob_service = BlobServiceClient.from_connection_string(
         os.getenv("AZURE_STORAGE_CONNECTION_STRING")
     )
     container = blob_service.get_container_client("results")
 
-    # 結果 JSON の保存先
-    result_blob_path = f"{blob_filename.replace('.csv', '')}_result.json"
-    result_blob_client = container.get_blob_client(result_blob_path)
-
-    # ログの保存先
-    log_blob_path = f"{blob_filename.replace('.csv', '')}_log.txt"
-
-    append_log(container, log_blob_path, f"スクリーニング開始: {blob_filename}")
-
-    # CSV 読み込み
-    input_blob_client = container.get_blob_client(blob_filename)
-    csv_bytes = input_blob_client.download_blob().readall()
+    input_blob = container.get_blob_client(blob_filename)
+    csv_bytes = input_blob.download_blob().readall()
     df = pd.read_csv(io.BytesIO(csv_bytes))
 
     results = []
-    total = len(df)
 
     for i, row in df.iterrows():
         symbol = row["symbol"]
         company_name = row.get("company_name", "")
         market = row.get("market", "")
 
-        append_log(container, log_blob_path, f"[{i+1}/{total}] {symbol} 処理開始")
+        r = process_symbol(
+            symbol=symbol,
+            company_name=company_name,
+            market=market,
+            log=lambda msg: None
+        )
 
-        def log_fn(msg):
-            append_log(container, log_blob_path, msg)
+        if r:
+            results.append(r)
 
-        result = process_symbol(symbol, company_name, market, log_fn)
-
-        if result:
-            results.append(result)
-            append_log(container, log_blob_path, f"[{i+1}/{total}] {symbol} 完了")
-        else:
-            append_log(container, log_blob_path, f"[{i+1}/{total}] {symbol} スキップ")
-
-    # 結果保存
-    result_blob_client.upload_blob(
+    result_blob_path = f"{blob_filename.replace('.csv', '')}_result.json"
+    result_blob = container.get_blob_client(result_blob_path)
+    result_blob.upload_blob(
         json.dumps(results, ensure_ascii=False),
         overwrite=True
     )
 
-    append_log(container, log_blob_path, f"スクリーニング完了: {len(results)} 件通過")
-
     return {
-        "saved_to": result_blob_path,
-        "log_path": log_blob_path
+        "saved_to": result_blob_path
     }
-
 
 # =====  PART2 =====
 from typing import List, Any
@@ -365,34 +282,8 @@ import pandas as pd
 import yfinance as yf
 from azure.storage.blob import BlobServiceClient
 from openai import AzureOpenAI
-from fastapi.responses import HTMLResponse
 
 app = FastAPI()
-
-# =========================
-# append_log（PART1 と完全同一）
-# =========================
-def append_log(container_client, log_blob_path: str, message: str):
-    """
-    Azure Blob Storage にログを追記保存する（リアルタイムログ用）
-    """
-    try:
-        blob_client = container_client.get_blob_client(log_blob_path)
-
-        # 既存ログを取得
-        try:
-            old = blob_client.download_blob().readall().decode("utf-8")
-        except Exception:
-            old = ""
-
-        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        new_text = old + f"[{ts}] {message}\n"
-
-        blob_client.upload_blob(new_text, overwrite=True)
-
-    except Exception as e:
-        print("log append error:", e)
-
 
 # =========================
 # ScreeningRequest
@@ -402,18 +293,13 @@ class ScreeningRequest(BaseModel):
 
 
 # =========================
-# ★ screening()：process_symbol ベース（ログ配列）
+# ★ screening()：ログなし版
 # =========================
 @app.post("/api/screening")
 async def screening(body: ScreeningRequest):
     try:
         symbols = body.symbols
         results = []
-        logs: List[str] = []
-
-        def log(msg: str):
-            print(msg)
-            logs.append(msg)
 
         for symbol in symbols:
             try:
@@ -421,18 +307,15 @@ async def screening(body: ScreeningRequest):
                     symbol=symbol,
                     company_name="",
                     market="",
-                    log=log,
+                    log=lambda msg: None,  # ログ無効化
                     python_condition=None
                 )
                 if r is not None:
                     results.append(r)
             except Exception as e:
-                log(f"[ERROR] screening {symbol}: {e}")
+                print(f"[ERROR] screening {symbol}: {e}")
 
-        if len(results) == 0:
-            logs.append("該当銘柄がありませんでした。")
-
-        return {"results": results, "logs": logs}
+        return {"results": results}
 
     except Exception as e:
         logging.exception("screening error")
@@ -447,7 +330,7 @@ class BlobCSVRequest(BaseModel):
 
 
 # =========================
-# ★ screening_from_blob（リアルタイムログ完全対応）
+# ★ screening_from_blob（ログなし高速版）
 # =========================
 @app.post("/api/screening_from_blob")
 async def screening_from_blob(body: BlobCSVRequest):
@@ -460,16 +343,10 @@ async def screening_from_blob(body: BlobCSVRequest):
         # 入力 CSV のコンテナ
         input_container = blob_service.get_container_client("block-data")
 
-        # 結果保存コンテナ
-        result_container_name = os.getenv("RESULT_CONTAINER", "results")
-        result_container = blob_service.get_container_client(result_container_name)
+        # 結果保存コンテナ（results に統一）
+        result_container = blob_service.get_container_client("results")
 
         blob_name = body.blob_filename
-
-        # ログ保存先
-        log_blob_path = f"{blob_name.replace('.csv', '')}_log.txt"
-
-        append_log(result_container, log_blob_path, f"[BLOB] loading CSV: {blob_name}")
 
         # CSV 読み込み
         blob_client = input_container.get_blob_client(blob_name)
@@ -479,37 +356,26 @@ async def screening_from_blob(body: BlobCSVRequest):
         required_cols = ["コード", "銘柄名", "市場"]
         for col in required_cols:
             if col not in df_csv.columns:
-                append_log(result_container, log_blob_path, f"[ERROR] CSV に '{col}' 列がありません")
                 return {
                     "saved_to": None,
-                    "log_path": log_blob_path
+                    "error": f"CSV に '{col}' 列がありません"
                 }
 
         # 銘柄コードを .T に変換
         symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        append_log(result_container, log_blob_path, f"[INFO] screening start: {len(symbols)} symbols")
-
         results = []
 
         for i, symbol in enumerate(symbols):
-            append_log(result_container, log_blob_path, f"[{i+1}/{len(symbols)}] {symbol} 処理開始")
-
-            def log_fn(msg: str):
-                append_log(result_container, log_blob_path, msg)
-
             r = process_symbol(
                 symbol=symbol,
                 company_name=df_csv.loc[i, "銘柄名"],
                 market=df_csv.loc[i, "市場"],
-                log=log_fn
+                log=lambda msg: None  # ログ無効化
             )
 
             if r:
                 results.append(r)
-                append_log(result_container, log_blob_path, f"[{i+1}/{len(symbols)}] {symbol} 完了")
-            else:
-                append_log(result_container, log_blob_path, f"[{i+1}/{len(symbols)}] {symbol} スキップ")
 
         # 結果 JSON 保存
         today = datetime.now().strftime("%Y-%m-%d")
@@ -521,20 +387,15 @@ async def screening_from_blob(body: BlobCSVRequest):
             overwrite=True
         )
 
-        append_log(result_container, log_blob_path, f"[SAVE] results saved to blob: {output_blob_name}")
-        append_log(result_container, log_blob_path, f"[DONE] screening finished: {len(results)} passed")
-
         return {
-            "saved_to": output_blob_name,
-            "log_path": log_blob_path
+            "saved_to": output_blob_name
         }
 
     except Exception as e:
         logging.exception("screening_from_blob error")
-        append_log(result_container, log_blob_path, f"[ERROR] screening_from_blob: {str(e)}")
         return {
             "saved_to": None,
-            "log_path": log_blob_path
+            "error": str(e)
         }
 
 
@@ -704,8 +565,7 @@ async def third_screening(body: dict):
             status_code=500
         )
 
-
-# ==== PART3 ====
+# ===== PART3   =====
 @app.get("/", response_class=HTMLResponse)
 def index():
     return """
@@ -787,53 +647,20 @@ def index():
 <button onclick="runThirdScreening()">三次スクリーニングを実行</button>
 <div id="thirdTable"></div>
 
-<h3>ログ（リアルタイム）</h3>
-<pre id="logArea" style="background:#f0f0f0; padding:10px; height:300px; overflow:auto;"></pre>
-
 <script>
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
 
 let latestResults = [];
 let latestSecond = [];
-let logTimer = null;
 
-// =========================
-// ★ リアルタイムログポーリング
-// =========================
-function startLogPolling(logPath) {
-  if (!logPath) return;
-
-  if (logTimer) {
-    clearInterval(logTimer);
-    logTimer = null;
-  }
-
-  const url = RESULT_BLOB_BASE + logPath;
-
-  logTimer = setInterval(async () => {
-    try {
-      const res = await fetch(url + "?" + Date.now());
-      if (!res.ok) return;
-
-      const text = await res.text();
-      const area = document.getElementById("logArea");
-      area.textContent = text;
-      area.scrollTop = area.scrollHeight;
-    } catch (e) {
-      console.log("log polling error", e);
-    }
-  }, 1000);
-}
-
-// =========================
-// ★ BLOB CSV 実行
-// =========================
+// ===============================
+// ★ BLOB CSV 実行（ログなし版）
+// ===============================
 async function runBlobCSV() {
   const filename = document.getElementById("blobCsvList").value;
 
   document.getElementById("loading").innerText =
     `BLOB CSV (${filename}) を実行中…`;
-  document.getElementById("logArea").textContent = "";
 
   try {
     const response = await fetch(
@@ -846,11 +673,6 @@ async function runBlobCSV() {
     );
 
     const result = await response.json();
-
-    // ★ リアルタイムログ開始
-    if (result.log_path) {
-      startLogPolling(result.log_path);
-    }
 
     if (!result.saved_to) {
       document.getElementById("loading").innerText = "エラー";
@@ -866,9 +688,9 @@ async function runBlobCSV() {
   }
 }
 
-// =========================
-// 結果 JSON 読み込み
-// =========================
+// ===============================
+// ★ 結果 JSON 読み込み
+// ===============================
 async function loadResultJson(path) {
   const url = RESULT_BLOB_BASE + path;
   const res = await fetch(url);
@@ -881,10 +703,9 @@ async function loadResultJson(path) {
   renderIndicatorTable(json);
 }
 
-// =========================
-// 表示系（一次・二次・三次）
-// =========================
-
+// ===============================
+// ★ 一次スクリーニング結果テーブル
+// ===============================
 function renderMainTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("mainTable").innerHTML = "<p>スクリーニング通過銘柄なし</p>";
@@ -923,6 +744,9 @@ function renderMainTable(data) {
   document.getElementById("mainTable").innerHTML = html;
 }
 
+// ===============================
+// ★ AI コメント一覧
+// ===============================
 function renderAiTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("aiTable").innerHTML = "<p>AI コメントなし</p>";
@@ -949,6 +773,9 @@ function renderAiTable(data) {
   document.getElementById("aiTable").innerHTML = html;
 }
 
+// ===============================
+// ★ 二次スクリーニング
+// ===============================
 async function runSecondScreening() {
   if (!latestResults || latestResults.length === 0) {
     alert("一次スクリーニング結果がありません。");
@@ -966,6 +793,9 @@ async function runSecondScreening() {
   renderSecondTable(latestSecond);
 }
 
+// ===============================
+// ★ 二次スクリーニング結果テーブル
+// ===============================
 function renderSecondTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("secondTable").innerHTML =
@@ -1004,6 +834,9 @@ function renderSecondTable(data) {
   document.getElementById("secondTable").innerHTML = html;
 }
 
+// ===============================
+// ★ 二次スクリーニング指標一覧
+// ===============================
 function renderIndicatorTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("indicatorTable").innerHTML =
@@ -1040,6 +873,9 @@ function renderIndicatorTable(data) {
   document.getElementById("indicatorTable").innerHTML = html;
 }
 
+// ===============================
+// ★ 三次スクリーニング
+// ===============================
 async function runThirdScreening() {
   if (!latestResults || latestResults.length === 0) {
     alert("一次スクリーニング結果がありません。");
@@ -1058,6 +894,9 @@ async function runThirdScreening() {
   renderThirdTable(data.results);
 }
 
+// ===============================
+// ★ 三次スクリーニング結果テーブル
+// ===============================
 function renderThirdTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("thirdTable").innerHTML =
