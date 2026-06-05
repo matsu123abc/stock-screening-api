@@ -56,7 +56,8 @@ def gpt_score(symbol, name, price, market_cap,
 さらに「買い」「様子見」「避ける」のいずれかで売買判断を行い、
 最後に簡潔なコメントを付けてください。
 
-返答は必ず次の JSON 形式で返してください：
+返答は必ず次の JSON 形式のみで返してください。
+JSON の前後に説明文や文章を一切付けないこと。
 
 {{
   "score": 数値,
@@ -91,9 +92,14 @@ ATR(14): {atr}
         )
 
         raw = res.choices[0].message.content.strip()
+
+        # --- JSON 抽出（安全版） ---
         json_start = raw.find("{")
         json_end = raw.rfind("}") + 1
         json_text = raw[json_start:json_end]
+
+        # --- 余計な文字を除去 ---
+        json_text = json_text.replace("```json", "").replace("```", "").strip()
 
         return json.loads(json_text)
 
@@ -103,6 +109,7 @@ ATR(14): {atr}
             "judgement": "エラー",
             "comment": f"GPTエラー: {str(e)}"
         }
+
 
 def process_symbol(symbol, company_name, market, log, python_condition=None):
     try:
