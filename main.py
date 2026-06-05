@@ -574,14 +574,70 @@ def index():
 <head>
   <meta charset="UTF-8">
   <title>Stock AI Screening Viewer</title>
+
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
-    th { background: #eee; }
-    .chart-link { font-size: 20px; text-decoration: none; }
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 30px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    .chart-link {
+      font-size: 20px;
+      text-decoration: none;
+    }
+
+    /* ============================
+       スマホ縦画面向け最適化
+       ============================ */
+    @media screen and (max-width: 600px) {
+
+      body {
+        font-size: 18px;
+        padding: 10px;
+      }
+
+      select, button {
+        width: 100%;
+        font-size: 20px;
+        padding: 14px;
+        margin-top: 10px;
+      }
+
+      h2, h3 {
+        font-size: 22px;
+        margin-top: 24px;
+      }
+
+      table {
+        font-size: 16px;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+
+      th, td {
+        padding: 10px;
+      }
+    }
   </style>
 </head>
+
 <body>
 
 <h2>Stock AI Screening Viewer</h2>
@@ -648,14 +704,15 @@ def index():
 <div id="thirdTable"></div>
 
 <script>
+
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
 
 let latestResults = [];
 let latestSecond = [];
 
-// ===============================
-// ★ BLOB CSV 実行（ログなし版）
-// ===============================
+/* ===============================
+   BLOB CSV 実行（ログなし）
+   =============================== */
 async function runBlobCSV() {
   const filename = document.getElementById("blobCsvList").value;
 
@@ -688,9 +745,9 @@ async function runBlobCSV() {
   }
 }
 
-// ===============================
-// ★ 結果 JSON 読み込み
-// ===============================
+/* ===============================
+   結果 JSON 読み込み
+   =============================== */
 async function loadResultJson(path) {
   const url = RESULT_BLOB_BASE + path;
   const res = await fetch(url);
@@ -703,9 +760,9 @@ async function loadResultJson(path) {
   renderIndicatorTable(json);
 }
 
-// ===============================
-// ★ 一次スクリーニング結果テーブル
-// ===============================
+/* ===============================
+   一次スクリーニング結果
+   =============================== */
 function renderMainTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("mainTable").innerHTML = "<p>スクリーニング通過銘柄なし</p>";
@@ -744,9 +801,9 @@ function renderMainTable(data) {
   document.getElementById("mainTable").innerHTML = html;
 }
 
-// ===============================
-// ★ AI コメント一覧
-// ===============================
+/* ===============================
+   AI コメント一覧
+   =============================== */
 function renderAiTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("aiTable").innerHTML = "<p>AI コメントなし</p>";
@@ -773,9 +830,9 @@ function renderAiTable(data) {
   document.getElementById("aiTable").innerHTML = html;
 }
 
-// ===============================
-// ★ 二次スクリーニング
-// ===============================
+/* ===============================
+   二次スクリーニング
+   =============================== */
 async function runSecondScreening() {
   if (!latestResults || latestResults.length === 0) {
     alert("一次スクリーニング結果がありません。");
@@ -793,9 +850,9 @@ async function runSecondScreening() {
   renderSecondTable(latestSecond);
 }
 
-// ===============================
-// ★ 二次スクリーニング結果テーブル
-// ===============================
+/* ===============================
+   二次スクリーニング結果
+   =============================== */
 function renderSecondTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("secondTable").innerHTML =
@@ -834,9 +891,9 @@ function renderSecondTable(data) {
   document.getElementById("secondTable").innerHTML = html;
 }
 
-// ===============================
-// ★ 二次スクリーニング指標一覧
-// ===============================
+/* ===============================
+   二次スクリーニング指標一覧
+   =============================== */
 function renderIndicatorTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("indicatorTable").innerHTML =
@@ -873,9 +930,9 @@ function renderIndicatorTable(data) {
   document.getElementById("indicatorTable").innerHTML = html;
 }
 
-// ===============================
-// ★ 三次スクリーニング
-// ===============================
+/* ===============================
+   三次スクリーニング
+   =============================== */
 async function runThirdScreening() {
   if (!latestResults || latestResults.length === 0) {
     alert("一次スクリーニング結果がありません。");
@@ -894,9 +951,9 @@ async function runThirdScreening() {
   renderThirdTable(data.results);
 }
 
-// ===============================
-// ★ 三次スクリーニング結果テーブル
-// ===============================
+/* ===============================
+   三次スクリーニング結果
+   =============================== */
 function renderThirdTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("thirdTable").innerHTML =
