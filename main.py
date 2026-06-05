@@ -9,9 +9,10 @@ from openai import AzureOpenAI
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, BlobClient
 import io
 import json
+import datetime as dt
 
 app = FastAPI()
 
@@ -165,6 +166,32 @@ JSON形式:
             "judgement": "エラー",
             "comment": f"GPTエラー: {str(e)}"
         }
+
+
+# =========================
+# ★ リアルタイムログ用ユーティリティ
+# =========================
+
+def append_log(log_blob_url: str, message: str):
+    """
+    Blob にログを追記保存する（リアルタイムログ用）
+    """
+    try:
+        blob = BlobClient.from_blob_url(log_blob_url)
+
+        # 既存ログを取得
+        try:
+            old = blob.download_blob().readall().decode("utf-8")
+        except Exception:
+            old = ""
+
+        ts = dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        new_text = old + f"[{ts}] {message}\n"
+
+        blob.upload_blob(new_text, overwrite=True)
+
+    except Exception as e:
+        print("log append error:", e)
 
 
 # =========================
@@ -324,6 +351,78 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
         log(f"[ERROR] {symbol} processing error: {e}")
         return None
 
+
+# =========================
+# 一次スクリーニング API（BLOB CSV から実行）
+# =========================
+
+class ScreeningFromBlobRequest(BaseModel):
+    blob_filename: str
+
+@app.post("/api/screening_from_blob")
+async def screening_from_blob(req: ScreeningFromBlobRequest):
+
+    blob_filename = req.blob_filename
+
+    # Blob Service
+    blob_service = BlobServiceClient.from_connection_string(
+        os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    )
+    container = blob_service.get_container_client("results")
+
+    # 結果 JSON の保存先
+    result_blob_path = f"{blob_filename.replace('.csv', '')}_result.json"
+    result_blob_client = container.get_blob_client(result_blob_path)
+
+    # ログの保存先
+    log_blob_path = f"{blob_filename.replace('.csv', '')}_log.txt"
+    log_blob_client = container.get_blob_client(log_blob_path)
+    log_blob_url = log_blob_client.url
+
+    # ログ開始
+    append_log(log_blob_url, f"スクリーニング開始: {blob_filename}")
+
+    # 入力 CSV 読み込み
+    input_blob_client = container.get_blob_client(blob_filename)
+    csv_bytes = input_blob_client.download_blob().readall()
+    df = pd.read_csv(io.BytesIO(csv_bytes))
+
+    results = []
+
+    total = len(df)
+
+    for i, row in df.iterrows():
+        symbol = row["symbol"]
+        company_name = row.get("company_name", "")
+        market = row.get("market", "")
+
+        append_log(log_blob_url, f"[{i+1}/{total}] {symbol} 処理開始")
+
+        def log_fn(msg: str):
+            append_log(log_blob_url, msg)
+
+        result = process_symbol(symbol, company_name, market, log_fn)
+
+        if result:
+            results.append(result)
+            append_log(log_blob_url, f"[{i+1}/{total}] {symbol} 完了")
+        else:
+            append_log(log_blob_url, f"[{i+1}/{total}] {symbol} スキップ")
+
+    # 結果を Blob に保存
+    result_blob_client.upload_blob(
+        json.dumps(results, ensure_ascii=False),
+        overwrite=True
+    )
+
+    append_log(log_blob_url, f"スクリーニング完了: {len(results)} 件通過")
+
+    return {
+        "saved_to": result_blob_path,
+        "log_path": log_blob_path
+    }
+
+
 # =====  PART2 =====
 from typing import List, Any
 from fastapi import FastAPI
@@ -333,7 +432,7 @@ import os, io, json, logging
 from datetime import datetime
 import pandas as pd
 import yfinance as yf
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, BlobClient
 from openai import AzureOpenAI
 from fastapi.responses import HTMLResponse
 
@@ -347,7 +446,7 @@ class ScreeningRequest(BaseModel):
 
 
 # =========================
-# ★ screening()：process_symbol ベース＋ログ収集
+# ★ screening()：process_symbol ベース（ログ配列）
 # =========================
 @app.post("/api/screening")
 async def screening(body: ScreeningRequest):
@@ -362,7 +461,6 @@ async def screening(body: ScreeningRequest):
 
         for symbol in symbols:
             try:
-                # company_name / market は process_symbol 内で解決される前提
                 r = process_symbol(
                     symbol=symbol,
                     company_name="",
@@ -393,58 +491,97 @@ class BlobCSVRequest(BaseModel):
 
 
 # =========================
-# ★ screening_from_blob（①-B）：CSV→screening→Blob保存＋ログ
+# ★ append_log（PART1 と同じリアルタイムログ）
+# =========================
+def append_log(log_blob_url: str, message: str):
+    try:
+        blob = BlobClient.from_blob_url(log_blob_url)
+
+        try:
+            old = blob.download_blob().readall().decode("utf-8")
+        except Exception:
+            old = ""
+
+        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        new_text = old + f"[{ts}] {message}\n"
+
+        blob.upload_blob(new_text, overwrite=True)
+
+    except Exception as e:
+        print("log append error:", e)
+
+
+# =========================
+# ★ screening_from_blob（①-B）：CSV→screening→Blob保存＋リアルタイムログ
 # =========================
 @app.post("/api/screening_from_blob")
 async def screening_from_blob(body: BlobCSVRequest):
-    logs: List[str] = []
 
     try:
         connect_str = os.getenv("AzureWebJobsStorage")
         blob_service = BlobServiceClient.from_connection_string(connect_str)
 
-        blob_container = "block-data"
+        # 入力 CSV のコンテナ
+        input_container = "block-data"
         blob_name = body.blob_filename
 
-        logs.append(f"[BLOB] loading CSV from blob: {blob_name}")
+        # 結果保存コンテナ
+        result_container = os.getenv("RESULT_CONTAINER", "screening-results")
 
+        # ログ保存先
+        log_blob_path = f"{blob_name.replace('.csv', '')}_log.txt"
+        log_blob_client = blob_service.get_blob_client(
+            container=result_container,
+            blob=log_blob_path
+        )
+        log_blob_url = log_blob_client.url
+
+        append_log(log_blob_url, f"[BLOB] loading CSV from blob: {blob_name}")
+
+        # CSV 読み込み
         blob_client = blob_service.get_blob_client(
-            container=blob_container,
+            container=input_container,
             blob=blob_name
         )
-
         csv_text = blob_client.download_blob().readall().decode("utf-8")
         df_csv = pd.read_csv(io.StringIO(csv_text))
 
         required_cols = ["コード", "銘柄名", "市場"]
         for col in required_cols:
             if col not in df_csv.columns:
-                logs.append(f"[ERROR] CSV に '{col}' 列がありません")
+                append_log(log_blob_url, f"[ERROR] CSV に '{col}' 列がありません")
                 return {
                     "saved_to": None,
-                    "results": [],
-                    "logs": logs
+                    "log_path": log_blob_path
                 }
 
-        # 銘柄コードを .T に変換（JSON は配列で保存）
+        # 銘柄コードを .T に変換
         symbols = [f"{code}.T" for code in df_csv["コード"]]
 
-        screening_request = ScreeningRequest(symbols=symbols)
-        screening_result = await screening(screening_request)
+        append_log(log_blob_url, f"[INFO] screening start: {len(symbols)} symbols")
 
-        results = screening_result.get("results", [])
-        logs.extend(screening_result.get("logs", []))
+        results = []
 
-        # ★ CSV の銘柄名・市場を結果に付与
-        for i, r in enumerate(results):
-            r["company_name"] = df_csv.loc[i, "銘柄名"]
-            r["market"] = df_csv.loc[i, "市場"]
+        for i, symbol in enumerate(symbols):
+            append_log(log_blob_url, f"[{i+1}/{len(symbols)}] {symbol} 処理開始")
 
-        if len(results) == 0:
-            logs.append("該当銘柄がありませんでした。")
+            def log_fn(msg: str):
+                append_log(log_blob_url, msg)
 
-        # Blob 保存（配列のまま）
-        result_container = os.getenv("RESULT_CONTAINER", "screening-results")
+            r = process_symbol(
+                symbol=symbol,
+                company_name=df_csv.loc[i, "銘柄名"],
+                market=df_csv.loc[i, "市場"],
+                log=log_fn
+            )
+
+            if r:
+                results.append(r)
+                append_log(log_blob_url, f"[{i+1}/{len(symbols)}] {symbol} 完了")
+            else:
+                append_log(log_blob_url, f"[{i+1}/{len(symbols)}] {symbol} スキップ")
+
+        # 結果 JSON 保存
         today = datetime.now().strftime("%Y-%m-%d")
         output_blob_name = f"{today}/screening_{today}.json"
 
@@ -452,24 +589,25 @@ async def screening_from_blob(body: BlobCSVRequest):
             container=result_container,
             blob=output_blob_name
         )
+        result_blob.upload_blob(
+            json.dumps(results, ensure_ascii=False, indent=2),
+            overwrite=True
+        )
 
-        json_text = json.dumps(results, ensure_ascii=False, indent=2)
-        result_blob.upload_blob(json_text, overwrite=True)
-
-        logs.append(f"[SAVE] results saved to blob: {output_blob_name}")
+        append_log(log_blob_url, f"[SAVE] results saved to blob: {output_blob_name}")
+        append_log(log_blob_url, f"[DONE] screening finished: {len(results)} passed")
 
         return {
             "saved_to": output_blob_name,
-            "logs": logs
+            "log_path": log_blob_path
         }
 
     except Exception as e:
         logging.exception("screening_from_blob error")
-        logs.append(f"[ERROR] screening_from_blob: {str(e)}")
+        append_log(log_blob_url, f"[ERROR] screening_from_blob: {str(e)}")
         return {
             "saved_to": None,
-            "results": [],
-            "logs": logs
+            "log_path": log_blob_path
         }
 
 
@@ -568,12 +706,10 @@ async def second_screening(body: SecondScreeningRequest):
         logging.exception("second_screening error")
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# =========================
-# 3次スクリーニング（企業業績 × AI 分析版）
-# =========================
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 
+# =========================
+# 3次スクリーニング（企業業績 × AI 分析）
+# =========================
 @app.post("/third_screening")
 async def third_screening(body: dict):
 
@@ -740,12 +876,37 @@ const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/
 
 let latestResults = [];   // 一次スクリーニング結果
 let latestSecond = [];    // 二次スクリーニング結果
+let logTimer = null;
+
+function startLogPolling(logPath) {
+  if (!logPath) return;
+  if (logTimer) {
+    clearInterval(logTimer);
+    logTimer = null;
+  }
+
+  const url = RESULT_BLOB_BASE + logPath;
+
+  logTimer = setInterval(async () => {
+    try {
+      const res = await fetch(url + "?" + Date.now());
+      if (!res.ok) return;
+      const text = await res.text();
+      const area = document.getElementById("logArea");
+      area.textContent = text;
+      area.scrollTop = area.scrollHeight;
+    } catch (e) {
+      console.log("log polling error", e);
+    }
+  }, 1000);
+}
 
 async function runBlobCSV() {
   const filename = document.getElementById("blobCsvList").value;
 
   document.getElementById("loading").innerText =
     `BLOB CSV (${filename}) を実行中…`;
+  document.getElementById("logArea").textContent = "";
 
   try {
     const response = await fetch(
@@ -759,8 +920,8 @@ async function runBlobCSV() {
 
     const result = await response.json();
 
-    if (result.logs) {
-        document.getElementById("logArea").innerText = result.logs.join("\\n");
+    if (result.log_path) {
+      startLogPolling(result.log_path);
     }
 
     if (!result.saved_to) {
@@ -945,13 +1106,11 @@ function renderIndicatorTable(data) {
 }
 
 async function runThirdScreening() {
-  // ★ 二次スクリーニングではなく「一次スクリーニング結果」をチェック
   if (!latestResults || latestResults.length === 0) {
     alert("一次スクリーニング結果がありません。");
     return;
   }
 
-  // ★ 三次スクリーニングは一次スクリーニングの銘柄で実行
   const symbols = latestResults.map(r => r.symbol);
 
   const response = await fetch("/third_screening", {
@@ -963,7 +1122,6 @@ async function runThirdScreening() {
   const data = await response.json();
   renderThirdTable(data.results);
 }
-
 
 function renderThirdTable(data) {
   if (!data || data.length === 0) {
