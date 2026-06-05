@@ -249,22 +249,36 @@ def process_symbol(symbol, company_name, market, log, python_condition=None):
             "company_name": company_name,
             "market": market,
             "close": close_price,
+
             "EMA20": ema20,
             "EMA50": ema50,
             "EMA200": ema200,
             "ATR": atr,
+
             "drop_rate": drop_rate,
             "reversal_rate": reversal_rate,
             "reversal_strength": reversal_strength,
             "market_cap": market_cap,
             "slope_ema20": slope_now,
             "volume_ratio": volume_ratio,
+
             "first_reversal_date": first_reversal_date,
             "last_reversal_date": last_reversal_date,
+
             "short_score": short_score,
             "gpt_score": gpt.get("score"),
             "gpt_judgement": gpt.get("judgement"),
             "gpt_comment": gpt.get("comment"),
+
+            # ★★★ 二次スクリーニング指標（追加）★★★
+            "drop_from_high_pct": drop_rate,
+            "rebound_from_low_pct": reversal_rate,
+            "ema20_vs_ema50": safe_float(ema20 - ema50),
+            "ema50_vs_ema200": safe_float(ema50 - ema200),
+            "price_vs_ema20_pct": safe_float((close_price / ema20 - 1) * 100) if ema20 else None,
+            "vol_vs_ma20": volume_ratio,
+            "atr_ratio": safe_float(atr / close_price) if close_price else None,
+
             "passed_python_condition": True
         }
 
@@ -447,7 +461,7 @@ async def screening_from_blob(body: BlobCSVRequest):
         input_container = blob_service.get_container_client("block-data")
 
         # 結果保存コンテナ
-        result_container_name = os.getenv("RESULT_CONTAINER", "screening-results")
+        result_container_name = os.getenv("RESULT_CONTAINER", "results")
         result_container = blob_service.get_container_client(result_container_name)
 
         blob_name = body.blob_filename
