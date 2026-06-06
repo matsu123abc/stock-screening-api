@@ -647,11 +647,21 @@ def index():
 
 <button onclick="runBlobCSV()">BLOB CSV で実行</button>
 
-<h3>使用中のスクリーニング条件（AI デフォルト）</h3>
-<div id="screeningRules" style="margin-bottom:20px; padding:10px; border:1px solid #ccc; background:#fafafa;">
-  <pre style="white-space:pre-wrap; font-size:16px;">
-slope_prev < 0  AND  slope_now > 0
-  </pre>
+<h3>スクリーニング条件（一般向け説明）</h3>
+
+<button id="ruleToggleBtn" type="button" onclick="toggleRules()">
+  ▼ スクリーニング条件を表示
+</button>
+
+<div id="screeningRules" style="display:none; margin-top:10px; padding:12px; border:1px solid #ccc; background:#fafafa;">
+  <ul style="font-size:16px; line-height:1.6; margin:0; padding-left:20px;">
+    <li><b>株価がしばらく下落していたこと</b>（EMA20 が下向き）</li>
+    <li><b>最近、株価が上向きに転じたこと</b>（EMA20 が上向きに変化）</li>
+    <li><b>直近120日で「高値 → 安値 → 現在値」の反発が強いこと</b></li>
+    <li><b>出来高が増えていること</b>（20日平均より多い）</li>
+    <li><b>価格変動が大きすぎないこと</b>（ATR が高すぎない）</li>
+    <li><b>総合スコアで短期上昇の可能性を評価</b></li>
+  </ul>
 </div>
 
 <hr>
