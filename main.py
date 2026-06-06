@@ -647,6 +647,13 @@ def index():
 
 <button onclick="runBlobCSV()">BLOB CSV で実行</button>
 
+<h3>使用中のスクリーニング条件（AI デフォルト）</h3>
+<div id="screeningRules" style="margin-bottom:20px; padding:10px; border:1px solid #ccc; background:#fafafa;">
+  <pre style="white-space:pre-wrap; font-size:16px;">
+slope_prev < 0  AND  slope_now > 0
+  </pre>
+</div>
+
 <hr>
 
 <h3>選択したCSVの銘柄一覧</h3>
