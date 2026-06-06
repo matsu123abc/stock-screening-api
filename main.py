@@ -718,6 +718,19 @@ function toggleCsvSymbols() {
   }
 }
 
+window.toggleRules = function() {
+  const box = document.getElementById("screeningRules");
+  const btn = document.getElementById("ruleToggleBtn");
+  if (!box) return;
+  if (box.style.display === "none" || box.style.display === "") {
+    box.style.display = "block";
+    if (btn) btn.textContent = "▲ スクリーニング条件を閉じる";
+  } else {
+    box.style.display = "none";
+    if (btn) btn.textContent = "▼ スクリーニング条件を表示";
+  }
+};
+
 /* CSV を読み込み、銘柄一覧を表示する */
 async function loadCsvSymbols(filename) {
   console.log("loadCsvSymbols called:", filename);
