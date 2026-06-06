@@ -700,7 +700,7 @@ def index():
 
 <h3>選択したCSVの銘柄一覧</h3>
 <div id="csvSymbolsBox">
-  <button onclick="toggleCsvSymbols()">▼ 銘柄一覧を表示</button>
+  <button onclick="toggleCsvSymbols()">銘柄一覧を表示</button>
   <div id="csvSymbols" style="display:none; margin-top:10px;"></div>
 </div>
 
