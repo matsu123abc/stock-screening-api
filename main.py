@@ -693,7 +693,7 @@ def index():
 <div id="thirdTable"></div>
 
 <h3>④ 銘柄説明（AI）</h3>
-<div id="explainTable"></div>
+<div id="explainBox" style="padding:12px; border:1px solid #ccc; background:#fafafa;"></div>
 
 <h3>4. 結果をHTMLとして保存</h3>
 <button onclick="downloadHtml()">この画面をHTML保存</button>
@@ -1089,6 +1089,19 @@ function renderExplainTable(data) {
 
   html += "</table>";
   document.getElementById("explainTable").innerHTML = html;
+}
+
+async function showExplain(symbol) {
+  const res = await fetch(`/api/explain_symbol?symbol=${symbol}`);
+  const data = await res.json();
+
+  const box = document.getElementById("explainBox");
+  box.innerHTML = `
+    <h4>${symbol} の企業説明</h4>
+    <p style="white-space:pre-wrap; line-height:1.6;">
+      ${data.comment || "説明が取得できませんでした"}
+    </p>
+  `;
 }
 
 console.log("PART3 script end");
