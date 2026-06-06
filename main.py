@@ -945,19 +945,31 @@ function renderAiTable(data) {
     document.getElementById("aiTable").innerHTML = "<p>AI コメントなし</p>";
     return;
   }
-  var html = "<table><tr><th>symbol</th><th>company</th><th>AI コメント</th><th>説明</th></tr>";
+
+  var html = "<table><tr>"
+    + "<th>symbol</th>"
+    + "<th>company</th>"
+    + "<th>AI コメント</th>"
+    + "<th>説明</th>"
+    + "</tr>";
+
   for (var i = 0; i < data.length; i++) {
     var r = data[i];
     html += "<tr>"
       + "<td>" + escapeHtml(r.symbol) + "</td>"
       + "<td>" + escapeHtml(r.company_name || "") + "</td>"
       + "<td>" + escapeHtml(r.gpt_comment || "") + "</td>"
-      + "<td><a href=\"/api/explain_symbol?symbol=" + encodeURIComponent(r.symbol) + "\" target=\"_blank\">説明</a></td>"
+
+      // ▼ ここをリンク → ボタン(showExplain) に変更
+      + "<td><button onclick=\"showExplain('" + r.symbol + "')\">説明を見る</button></td>"
+
       + "</tr>";
   }
+
   html += "</table>";
   document.getElementById("aiTable").innerHTML = html;
 }
+
 
 /* 二次スクリーニング */
 async function runSecondScreening() {
