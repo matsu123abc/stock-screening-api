@@ -692,6 +692,9 @@ def index():
 <button onclick="runThirdScreening()">三次スクリーニングを実行</button>
 <div id="thirdTable"></div>
 
+<h3>④ 銘柄説明（AI）</h3>
+<div id="explainTable"></div>
+
 <h3>4. 結果をHTMLとして保存</h3>
 <button onclick="downloadHtml()">この画面をHTML保存</button>
 
@@ -904,6 +907,7 @@ async function loadResultJson(path) {
   renderMainTable(json);
   renderAiTable(json);
   renderIndicatorTable(json);
+  renderExplainTable(json);
 }
 
 /* 一次スクリーニング結果表示 */
@@ -1057,6 +1061,34 @@ function renderThirdTable(data) {
   }
   html += "</table>";
   document.getElementById("thirdTable").innerHTML = html;
+}
+
+/* ===============================
+   ④ 銘柄説明（AI）
+   =============================== */
+function renderExplainTable(data) {
+  if (!data || data.length === 0) {
+    document.getElementById("explainTable").innerHTML =
+      "<p>銘柄説明データなし</p>";
+    return;
+  }
+
+  let html = "<table><tr>"
+    + "<th>symbol</th>"
+    + "<th>company</th>"
+    + "<th>説明（AI）</th>"
+    + "</tr>";
+
+  for (const r of data) {
+    html += `<tr>
+      <td>${r.symbol}</td>
+      <td>${r.company_name || ""}</td>
+      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">AI による企業説明を見る</a></td>
+    </tr>`;
+  }
+
+  html += "</table>";
+  document.getElementById("explainTable").innerHTML = html;
 }
 
 console.log("PART3 script end");
