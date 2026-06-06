@@ -589,70 +589,21 @@ def index():
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stock AI Screening Viewer</title>
-
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 20px;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-bottom: 30px;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px;
-    }
-
-    th {
-      background: #eee;
-    }
-
-    .chart-link {
-      font-size: 20px;
-      text-decoration: none;
-    }
-
-    /* ============================
-       スマホ縦画面向け最適化
-       ============================ */
+    body { font-family: sans-serif; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
+    th, td { border: 1px solid #ccc; padding: 6px; }
+    th { background: #eee; }
+    .chart-link { font-size: 20px; text-decoration: none; }
     @media screen and (max-width: 600px) {
-
-      body {
-        font-size: 18px;
-        padding: 10px;
-      }
-
-      select, button {
-        width: 100%;
-        font-size: 20px;
-        padding: 14px;
-        margin-top: 10px;
-      }
-
-      h2, h3 {
-        font-size: 22px;
-        margin-top: 24px;
-      }
-
-      table {
-        font-size: 16px;
-        width: 100%;
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
-      }
-
-      th, td {
-        padding: 10px;
-      }
+      body { font-size: 18px; padding: 10px; }
+      select, button { width: 100%; font-size: 20px; padding: 14px; margin-top: 10px; }
+      h2, h3 { font-size: 22px; margin-top: 24px; }
+      table { font-size: 16px; width: 100%; display: block; overflow-x: auto; white-space: nowrap; }
+      th, td { padding: 10px; }
     }
   </style>
 </head>
-
 <body>
 
 <h2>Stock AI Screening Viewer</h2>
@@ -660,38 +611,38 @@ def index():
 <h3>①-B BLOB の CSV を選択して実行</h3>
 
 <select id="blobCsvList" onchange="loadCsvSymbols(this.value)">
-    <option value="prime_001-050.csv">prime_001-050.csv</option>
-    <option value="prime_051-100.csv">prime_051-100.csv</option>
-    <option value="prime_101-150.csv">prime_101-150.csv</option>
-    <option value="prime_151-200.csv">prime_151-200.csv</option>
-    <option value="prime_201-250.csv">prime_201-250.csv</option>
-    <option value="prime_251-300.csv">prime_251-300.csv</option>
-    <option value="prime_301-350.csv">prime_301-350.csv</option>
-    <option value="prime_351-400.csv">prime_351-400.csv</option>
-    <option value="prime_401-450.csv">prime_401-450.csv</option>
-    <option value="prime_451-500.csv">prime_451-500.csv</option>
-    <option value="prime_501-550.csv">prime_501-550.csv</option>
-    <option value="prime_551-600.csv">prime_551-600.csv</option>
-    <option value="prime_601-650.csv">prime_601-650.csv</option>
-    <option value="prime_651-700.csv">prime_651-700.csv</option>
-    <option value="prime_701-750.csv">prime_701-750.csv</option>
-    <option value="prime_751-800.csv">prime_751-800.csv</option>
-    <option value="prime_801-850.csv">prime_801-850.csv</option>
-    <option value="prime_851-900.csv">prime_851-900.csv</option>
-    <option value="prime_901-950.csv">prime_901-950.csv</option>
-    <option value="prime_951-1000.csv">prime_951-1000.csv</option>
-    <option value="prime_1001-1050.csv">prime_1001-1050.csv</option>
-    <option value="prime_1051-1100.csv">prime_1051-1100.csv</option>
-    <option value="prime_1101-1150.csv">prime_1101-1150.csv</option>
-    <option value="prime_1151-1200.csv">prime_1151-1200.csv</option>
-    <option value="prime_1201-1250.csv">prime_1201-1250.csv</option>
-    <option value="prime_1251-1300.csv">prime_1251-1300.csv</option>
-    <option value="prime_1301-1350.csv">prime_1301-1350.csv</option>
-    <option value="prime_1351-1400.csv">prime_1351-1400.csv</option>
-    <option value="prime_1401-1450.csv">prime_1401-1450.csv</option>
-    <option value="prime_1451-1500.csv">prime_1451-1500.csv</option>
-    <option value="prime_1501-1550.csv">prime_1501-1550.csv</option>
-    <option value="prime_1551-1600.csv">prime_1551-1600.csv</option>
+  <option value="prime_001-050.csv">prime_001-050.csv</option>
+  <option value="prime_051-100.csv">prime_051-100.csv</option>
+  <option value="prime_101-150.csv">prime_101-150.csv</option>
+  <option value="prime_151-200.csv">prime_151-200.csv</option>
+  <option value="prime_201-250.csv">prime_201-250.csv</option>
+  <option value="prime_251-300.csv">prime_251-300.csv</option>
+  <option value="prime_301-350.csv">prime_301-350.csv</option>
+  <option value="prime_351-400.csv">prime_351-400.csv</option>
+  <option value="prime_401-450.csv">prime_401-450.csv</option>
+  <option value="prime_451-500.csv">prime_451-500.csv</option>
+  <option value="prime_501-550.csv">prime_501-550.csv</option>
+  <option value="prime_551-600.csv">prime_551-600.csv</option>
+  <option value="prime_601-650.csv">prime_601-650.csv</option>
+  <option value="prime_651-700.csv">prime_651-700.csv</option>
+  <option value="prime_701-750.csv">prime_701-750.csv</option>
+  <option value="prime_751-800.csv">prime_751-800.csv</option>
+  <option value="prime_801-850.csv">prime_801-850.csv</option>
+  <option value="prime_851-900.csv">prime_851-900.csv</option>
+  <option value="prime_901-950.csv">prime_901-950.csv</option>
+  <option value="prime_951-1000.csv">prime_951-1000.csv</option>
+  <option value="prime_1001-1050.csv">prime_1001-1050.csv</option>
+  <option value="prime_1051-1100.csv">prime_1051-1100.csv</option>
+  <option value="prime_1101-1150.csv">prime_1101-1150.csv</option>
+  <option value="prime_1151-1200.csv">prime_1151-1200.csv</option>
+  <option value="prime_1201-1250.csv">prime_1201-1250.csv</option>
+  <option value="prime_1251-1300.csv">prime_1251-1300.csv</option>
+  <option value="prime_1301-1350.csv">prime_1301-1350.csv</option>
+  <option value="prime_1351-1400.csv">prime_1351-1400.csv</option>
+  <option value="prime_1401-1450.csv">prime_1401-1450.csv</option>
+  <option value="prime_1451-1500.csv">prime_1451-1500.csv</option>
+  <option value="prime_1501-1550.csv">prime_1501-1550.csv</option>
+  <option value="prime_1551-1600.csv">prime_1551-1600.csv</option>
 </select>
 
 <button onclick="runBlobCSV()">BLOB CSV で実行</button>
@@ -725,64 +676,83 @@ def index():
 <div id="thirdTable"></div>
 
 <h3>4. 結果をHTMLとして保存</h3>
-
 <button onclick="downloadHtml()">この画面をHTML保存</button>
 
 <script>
+/* Debug marker */
+console.log("PART3 script start");
 
+/* 基本定数 */
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
-
 let latestResults = [];
 let latestSecond = [];
 
-// トグル表示
+/* トグル表示 */
 function toggleCsvSymbols() {
-  const box = document.getElementById("csvSymbols");
-  const btn = document.getElementById("csvToggleBtn");
+  var box = document.getElementById("csvSymbols");
+  var btn = document.getElementById("csvToggleBtn");
   if (!box) return;
   if (box.style.display === "none" || box.style.display === "") {
     box.style.display = "block";
-    btn.textContent = "銘柄一覧を閉じる";
+    if (btn) btn.textContent = "銘柄一覧を閉じる";
   } else {
     box.style.display = "none";
-    btn.textContent = "銘柄一覧を表示";
+    if (btn) btn.textContent = "銘柄一覧を表示";
   }
 }
 
-// CSV を読み込み、銘柄一覧を表示する
+/* CSV を読み込み、銘柄一覧を表示する */
 async function loadCsvSymbols(filename) {
+  console.log("loadCsvSymbols called:", filename);
+  var target = document.getElementById("csvSymbols");
   if (!filename) {
-    document.getElementById("csvSymbols").innerHTML = "<p>ファイルが選択されていません。</p>";
+    if (target) target.innerHTML = "<p>ファイルが選択されていません。</p>";
     return;
   }
 
-  const url = "https://stockai20260214.blob.core.windows.net/block-data/" + filename;
+  var url = "https://stockai20260214.blob.core.windows.net/block-data/" + filename;
 
   try {
-    const res = await fetch(url);
+    var res = await fetch(url);
     if (!res.ok) throw new Error("HTTP " + res.status);
-    let text = await res.text();
+    var text = await res.text();
 
-    // BOM を除去
-    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    // BOM を除去（先頭が BOM の場合）
+    if (text && text.length > 0 && text.charCodeAt(0) === 0xFEFF) {
+      text = text.slice(1);
+    }
 
-    // 行分割（CRLF / LF に対応）
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    // 行分割（CR を手動で取り除く）
+    var rawLines = text.split("\n");
+    var lines = [];
+    for (var i = 0; i < rawLines.length; i++) {
+      var ln = rawLines[i];
+      if (ln.length > 0 && ln.charAt(ln.length - 1) === '\r') {
+        ln = ln.slice(0, -1);
+      }
+      ln = ln.trim();
+      if (ln.length > 0) lines.push(ln);
+    }
+
     if (lines.length === 0) {
-      document.getElementById("csvSymbols").innerHTML = "<p>CSV が空です。</p>";
+      if (target) target.innerHTML = "<p>CSV が空です。</p>";
       return;
     }
 
-    // ヘッダー解析（カンマ区切り、引用符対応の簡易パーサ）
-    const parseCsvLine = (line) => {
-      const cols = [];
-      let cur = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"' ) {
-          if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
-          else inQuotes = !inQuotes;
+    // 簡易 CSV パーサ（引用符対応）
+    function parseCsvLine(line) {
+      var cols = [];
+      var cur = "";
+      var inQuotes = false;
+      for (var j = 0; j < line.length; j++) {
+        var ch = line.charAt(j);
+        if (ch === '"') {
+          if (inQuotes && j + 1 < line.length && line.charAt(j+1) === '"') {
+            cur += '"';
+            j++;
+          } else {
+            inQuotes = !inQuotes;
+          }
         } else if (ch === ',' && !inQuotes) {
           cols.push(cur);
           cur = "";
@@ -791,354 +761,278 @@ async function loadCsvSymbols(filename) {
         }
       }
       cols.push(cur);
-      return cols.map(c => c.trim());
-    };
+      // trim each
+      for (var k = 0; k < cols.length; k++) cols[k] = cols[k].trim();
+      return cols;
+    }
 
-    const headers = parseCsvLine(lines[0]).map(h => h.replace(/\uFEFF/g, "").trim());
-    // 柔軟にヘッダー名を探す
-    const codeIndex = headers.findIndex(h => /^(コード|code|symbol)$/i.test(h));
-    const nameIndex = headers.findIndex(h => /^(銘柄名|名称|name)$/i.test(h));
-    const marketIndex = headers.findIndex(h => /^(市場|market)$/i.test(h));
+    var headers = parseCsvLine(lines[0]);
+    // ヘッダー名を柔軟に検出
+    var codeIndex = -1, nameIndex = -1, marketIndex = -1;
+    for (var h = 0; h < headers.length; h++) {
+      var hh = headers[h].replace(/\uFEFF/g, "").trim().toLowerCase();
+      if (hh === "コード" || hh === "code" || hh === "symbol") codeIndex = h;
+      if (hh === "銘柄名" || hh === "名称" || hh === "name") nameIndex = h;
+      if (hh === "市場" || hh === "market") marketIndex = h;
+    }
 
     if (codeIndex === -1 || nameIndex === -1) {
-      document.getElementById("csvSymbols").innerHTML = "<p>CSV ヘッダーに「コード」「銘柄名」が見つかりません。</p>";
+      if (target) target.innerHTML = "<p>CSV ヘッダーに「コード」「銘柄名」が見つかりません。</p>";
       return;
     }
 
-    let html = `<p>銘柄数: ${lines.length - 1} 件</p><ul>`;
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCsvLine(lines[i]);
-      const code = cols[codeIndex] || "";
-      const name = cols[nameIndex] || "";
-      const market = (marketIndex !== -1) ? (cols[marketIndex] || "") : "";
-      // Yahoo ファイナンスへのリンク（新しいタブで開く）
-      const link = code ? `https://finance.yahoo.co.jp/quote/${encodeURIComponent(code)}` : "#";
-      html += `<li><a href="${link}" target="_blank" rel="noopener noreferrer">${escapeHtml(code)} : ${escapeHtml(name)}</a>`;
-      if (market) html += ` （${escapeHtml(market)}）`;
-      html += `</li>`;
+    var html = "<p>銘柄数: " + (lines.length - 1) + " 件</p><ul>";
+    for (var i2 = 1; i2 < lines.length; i2++) {
+      var cols = parseCsvLine(lines[i2]);
+      var code = cols[codeIndex] || "";
+      var name = cols[nameIndex] || "";
+      var market = (marketIndex !== -1) ? (cols[marketIndex] || "") : "";
+      var link = code ? "https://finance.yahoo.co.jp/quote/" + encodeURIComponent(code) : "#";
+      html += "<li><a href=\"" + link + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(code) + " : " + escapeHtml(name) + "</a>";
+      if (market) html += " （" + escapeHtml(market) + "）";
+      html += "</li>";
     }
     html += "</ul>";
 
-    document.getElementById("csvSymbols").innerHTML = html;
+    if (target) target.innerHTML = html;
 
-    // 自動で展開する（任意）
-    const box = document.getElementById("csvSymbols");
-    if (box && (box.style.display === "none" || box.style.display === "")) {
-      box.style.display = "block";
-      const btn = document.getElementById("csvToggleBtn");
+    // 自動展開
+    if (target && (target.style.display === "none" || target.style.display === "")) {
+      target.style.display = "block";
+      var btn = document.getElementById("csvToggleBtn");
       if (btn) btn.textContent = "銘柄一覧を閉じる";
     }
 
   } catch (e) {
     console.error("loadCsvSymbols error:", e);
-    document.getElementById("csvSymbols").innerHTML = "<p>CSV 読み込みエラー</p>";
+    if (target) target.innerHTML = "<p>CSV 読み込みエラー</p>";
   }
 }
 
-// XSS 対策のための簡易エスケープ
+/* XSS 対策のための簡易エスケープ */
 function escapeHtml(s) {
   if (!s) return "";
-  return s.replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#39;");
+  s = String(s);
+  s = s.replace(/&/g, "&amp;");
+  s = s.replace(/</g, "&lt;");
+  s = s.replace(/>/g, "&gt;");
+  s = s.replace(/"/g, "&quot;");
+  s = s.replace(/'/g, "&#39;");
+  return s;
 }
 
+/* HTML 保存 */
 function downloadHtml() {
-  const html = document.documentElement.outerHTML;
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-
+  var html = document.documentElement.outerHTML;
+  var blob = new Blob([html], { type: "text/html" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  var now = new Date();
+  var y = now.getFullYear();
+  var m = String(now.getMonth() + 1).padStart(2, "0");
+  var d = String(now.getDate()).padStart(2, "0");
+  var hh = String(now.getHours()).padStart(2, "0");
+  var mm = String(now.getMinutes()).padStart(2, "0");
   a.href = url;
-  a.download = `stock_screening_${y}${m}${d}_${hh}${mm}.html`;
+  a.download = "stock_screening_" + y + m + d + "_" + hh + mm + ".html";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-/* ===============================
-   BLOB CSV 実行（ログなし）
-   =============================== */
+/* BLOB 実行（ダミー呼び出し） */
 async function runBlobCSV() {
-  const filename = document.getElementById("blobCsvList").value;
-
-  document.getElementById("loading").innerText =
-    `BLOB CSV (${filename}) を実行中…`;
-
+  var filename = document.getElementById("blobCsvList").value;
+  document.getElementById("loading").innerText = "BLOB CSV (" + filename + ") を実行中…";
   try {
-    const response = await fetch(
-      `/api/screening_from_blob`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blob_filename: filename })
-      }
-    );
-
-    const result = await response.json();
-
+    var response = await fetch("/api/screening_from_blob", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blob_filename: filename })
+    });
+    var result = await response.json();
     if (!result.saved_to) {
       document.getElementById("loading").innerText = "エラー";
       alert(JSON.stringify(result));
       return;
     }
-
     document.getElementById("loading").innerText = "完了！";
     loadResultJson(result.saved_to);
-
   } catch (e) {
+    console.error("runBlobCSV error:", e);
     document.getElementById("loading").innerText = "通信エラー";
   }
 }
 
-/* ===============================
-   結果 JSON 読み込み
-   =============================== */
+/* 結果 JSON 読み込み */
 async function loadResultJson(path) {
-  const url = RESULT_BLOB_BASE + path;
-  const res = await fetch(url);
-  const json = await res.json();
-
+  var url = RESULT_BLOB_BASE + path;
+  var res = await fetch(url);
+  var json = await res.json();
   latestResults = json;
-
   renderMainTable(json);
   renderAiTable(json);
   renderIndicatorTable(json);
 }
 
-
-/* ===============================
-   一次スクリーニング結果
-   =============================== */
+/* 一次スクリーニング結果表示 */
 function renderMainTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("mainTable").innerHTML = "<p>スクリーニング通過銘柄なし</p>";
     return;
   }
-
-  let html = "<table><tr>"
-    + "<th>symbol</th>"
-    + "<th>company</th>"
-    + "<th>market</th>"
-    + "<th>close</th>"
-    + "<th>最初の反転日</th>"
-    + "<th>最新の反転日</th>"
-    + "<th>short_score</th>"
-    + "<th>judgement</th>"
-    + "<th>chart</th>"
-    + "<th>説明</th>"
-    + "</tr>";
-
-  for (const r of data) {
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.company_name || ""}</td>
-      <td>${r.market || ""}</td>
-      <td>${r.close}</td>
-      <td>${r.first_reversal_date || ""}</td>
-      <td>${r.last_reversal_date || ""}</td>
-      <td>${r.short_score}</td>
-      <td>${r.gpt_judgement}</td>
-      <td><a class="chart-link" href="https://finance.yahoo.co.jp/quote/${r.symbol}" target="_blank">📈</a></td>
-      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
-    </tr>`;
+  var html = "<table><tr>"
+    + "<th>symbol</th><th>company</th><th>market</th><th>close</th>"
+    + "<th>最初の反転日</th><th>最新の反転日</th><th>short_score</th>"
+    + "<th>judgement</th><th>chart</th><th>説明</th></tr>";
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    html += "<tr>"
+      + "<td>" + escapeHtml(r.symbol) + "</td>"
+      + "<td>" + escapeHtml(r.company_name || "") + "</td>"
+      + "<td>" + escapeHtml(r.market || "") + "</td>"
+      + "<td>" + escapeHtml(r.close) + "</td>"
+      + "<td>" + escapeHtml(r.first_reversal_date || "") + "</td>"
+      + "<td>" + escapeHtml(r.last_reversal_date || "") + "</td>"
+      + "<td>" + escapeHtml(r.short_score) + "</td>"
+      + "<td>" + escapeHtml(r.gpt_judgement) + "</td>"
+      + "<td><a class=\"chart-link\" href=\"https://finance.yahoo.co.jp/quote/" + encodeURIComponent(r.symbol) + "\" target=\"_blank\">📈</a></td>"
+      + "<td><a href=\"/api/explain_symbol?symbol=" + encodeURIComponent(r.symbol) + "\" target=\"_blank\">説明</a></td>"
+      + "</tr>";
   }
-
   html += "</table>";
   document.getElementById("mainTable").innerHTML = html;
 }
 
-/* ===============================
-   AI コメント一覧
-   =============================== */
+/* AI コメント一覧 */
 function renderAiTable(data) {
   if (!data || data.length === 0) {
     document.getElementById("aiTable").innerHTML = "<p>AI コメントなし</p>";
     return;
   }
-
-  let html = "<table><tr>"
-    + "<th>symbol</th>"
-    + "<th>company</th>"
-    + "<th>AI コメント</th>"
-    + "<th>説明</th>"
-    + "</tr>";
-
-  for (const r of data) {
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.company_name || ""}</td>
-      <td>${r.gpt_comment || ""}</td>
-      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
-    </tr>`;
+  var html = "<table><tr><th>symbol</th><th>company</th><th>AI コメント</th><th>説明</th></tr>";
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    html += "<tr>"
+      + "<td>" + escapeHtml(r.symbol) + "</td>"
+      + "<td>" + escapeHtml(r.company_name || "") + "</td>"
+      + "<td>" + escapeHtml(r.gpt_comment || "") + "</td>"
+      + "<td><a href=\"/api/explain_symbol?symbol=" + encodeURIComponent(r.symbol) + "\" target=\"_blank\">説明</a></td>"
+      + "</tr>";
   }
-
   html += "</table>";
   document.getElementById("aiTable").innerHTML = html;
 }
 
-/* ===============================
-   二次スクリーニング
-   =============================== */
+/* 二次スクリーニング */
 async function runSecondScreening() {
   if (!latestResults || latestResults.length === 0) {
     alert("一次スクリーニング結果がありません。");
     return;
   }
-
-  const response = await fetch("/second_screening", {
+  var response = await fetch("/second_screening", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ results: latestResults })
   });
-
-  const data = await response.json();
+  var data = await response.json();
   latestSecond = data.second_screening;
   renderSecondTable(latestSecond);
 }
 
-/* ===============================
-   二次スクリーニング結果
-   =============================== */
+/* 二次スクリーニング結果 */
 function renderSecondTable(data) {
   if (!data || data.length === 0) {
-    document.getElementById("secondTable").innerHTML =
-      "<p>二次スクリーニング結果（0 件）</p>";
+    document.getElementById("secondTable").innerHTML = "<p>二次スクリーニング結果（0 件）</p>";
     return;
   }
-
-  let html = "<p>二次スクリーニング結果（" + data.length + " 件）</p>";
-  html += "<table><tr>"
-    + "<th>symbol</th>"
-    + "<th>company</th>"
-    + "<th>market</th>"
-    + "<th>close</th>"
-    + "<th>short_score</th>"
-    + "<th>mid_score</th>"
-    + "<th>judgement</th>"
-    + "<th>chart</th>"
-    + "<th>説明</th>"
-    + "</tr>";
-
-  for (const r of data) {
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.company_name || ""}</td>
-      <td>${r.market || ""}</td>
-      <td>${r.close}</td>
-      <td>${r.short_score}</td>
-      <td>${r.mid_score}</td>
-      <td>${r.gpt_judgement}</td>
-      <td><a class="chart-link" href="https://finance.yahoo.co.jp/quote/${r.symbol}" target="_blank">📈</a></td>
-      <td><a href="/api/explain_symbol?symbol=${r.symbol}" target="_blank">説明</a></td>
-    </tr>`;
+  var html = "<p>二次スクリーニング結果（" + data.length + " 件）</p>";
+  html += "<table><tr><th>symbol</th><th>company</th><th>market</th><th>close</th><th>short_score</th><th>mid_score</th><th>judgement</th><th>chart</th><th>説明</th></tr>";
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    html += "<tr>"
+      + "<td>" + escapeHtml(r.symbol) + "</td>"
+      + "<td>" + escapeHtml(r.company_name || "") + "</td>"
+      + "<td>" + escapeHtml(r.market || "") + "</td>"
+      + "<td>" + escapeHtml(r.close) + "</td>"
+      + "<td>" + escapeHtml(r.short_score) + "</td>"
+      + "<td>" + escapeHtml(r.mid_score) + "</td>"
+      + "<td>" + escapeHtml(r.gpt_judgement) + "</td>"
+      + "<td><a class=\"chart-link\" href=\"https://finance.yahoo.co.jp/quote/" + encodeURIComponent(r.symbol) + "\" target=\"_blank\">📈</a></td>"
+      + "<td><a href=\"/api/explain_symbol?symbol=" + encodeURIComponent(r.symbol) + "\" target=\"_blank\">説明</a></td>"
+      + "</tr>";
   }
-
   html += "</table>";
   document.getElementById("secondTable").innerHTML = html;
 }
 
-/* ===============================
-   二次スクリーニング指標一覧
-   =============================== */
+/* 二次スクリーニング指標一覧 */
 function renderIndicatorTable(data) {
   if (!data || data.length === 0) {
-    document.getElementById("indicatorTable").innerHTML =
-      "<p>二次スクリーニング指標一覧（0 件）</p>";
+    document.getElementById("indicatorTable").innerHTML = "<p>二次スクリーニング指標一覧（0 件）</p>";
     return;
   }
-
-  let html = "<p>二次スクリーニング指標一覧（" + data.length + " 件）</p>";
-  html += "<table><tr>"
-    + "<th>symbol</th>"
-    + "<th>drop_from_high_pct</th>"
-    + "<th>rebound_from_low_pct</th>"
-    + "<th>ema20_vs_ema50</th>"
-    + "<th>ema50_vs_ema200</th>"
-    + "<th>price_vs_ema20_pct</th>"
-    + "<th>vol_vs_ma20</th>"
-    + "<th>atr_ratio</th>"
-    + "</tr>";
-
-  for (const r of data) {
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.drop_from_high_pct}</td>
-      <td>${r.rebound_from_low_pct}</td>
-      <td>${r.ema20_vs_ema50}</td>
-      <td>${r.ema50_vs_ema200}</td>
-      <td>${r.price_vs_ema20_pct}</td>
-      <td>${r.vol_vs_ma20}</td>
-      <td>${r.atr_ratio}</td>
-    </tr>`;
+  var html = "<p>二次スクリーニング指標一覧（" + data.length + " 件）</p>";
+  html += "<table><tr><th>symbol</th><th>drop_from_high_pct</th><th>rebound_from_low_pct</th><th>ema20_vs_ema50</th><th>ema50_vs_ema200</th><th>price_vs_ema20_pct</th><th>vol_vs_ma20</th><th>atr_ratio</th></tr>";
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    html += "<tr>"
+      + "<td>" + escapeHtml(r.symbol) + "</td>"
+      + "<td>" + escapeHtml(r.drop_from_high_pct) + "</td>"
+      + "<td>" + escapeHtml(r.rebound_from_low_pct) + "</td>"
+      + "<td>" + escapeHtml(r.ema20_vs_ema50) + "</td>"
+      + "<td>" + escapeHtml(r.ema50_vs_ema200) + "</td>"
+      + "<td>" + escapeHtml(r.price_vs_ema20_pct) + "</td>"
+      + "<td>" + escapeHtml(r.vol_vs_ma20) + "</td>"
+      + "<td>" + escapeHtml(r.atr_ratio) + "</td>"
+      + "</tr>";
   }
-
   html += "</table>";
   document.getElementById("indicatorTable").innerHTML = html;
 }
 
-/* ===============================
-   三次スクリーニング
-   =============================== */
+/* 三次スクリーニング */
 async function runThirdScreening() {
   if (!latestResults || latestResults.length === 0) {
     alert("一次スクリーニング結果がありません。");
     return;
   }
-
-  const symbols = latestResults.map(r => r.symbol);
-
-  const response = await fetch("/third_screening", {
+  var symbols = [];
+  for (var i = 0; i < latestResults.length; i++) symbols.push(latestResults[i].symbol);
+  var response = await fetch("/third_screening", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ symbols })
+    body: JSON.stringify({ symbols: symbols })
   });
-
-  const data = await response.json();
+  var data = await response.json();
   renderThirdTable(data.results);
 }
 
-/* ===============================
-   三次スクリーニング結果
-   =============================== */
+/* 三次スクリーニング結果 */
 function renderThirdTable(data) {
   if (!data || data.length === 0) {
-    document.getElementById("thirdTable").innerHTML =
-      "<p>三次スクリーニング結果（0 件）</p>";
+    document.getElementById("thirdTable").innerHTML = "<p>三次スクリーニング結果（0 件）</p>";
     return;
   }
-
-  let html = "<p>三次スクリーニング結果（" + data.length + " 件）</p>";
-  html += "<table><tr>"
-    + "<th>symbol</th>"
-    + "<th>analysis</th>"
-    + "<th>fundamentals</th>"
-    + "</tr>";
-
-  for (const r of data) {
-    html += `<tr>
-      <td>${r.symbol}</td>
-      <td>${r.analysis}</td>
-      <td><pre>${JSON.stringify(r.fundamentals, null, 2)}</pre></td>
-    </tr>`;
+  var html = "<p>三次スクリーニング結果（" + data.length + " 件）</p>";
+  html += "<table><tr><th>symbol</th><th>analysis</th><th>fundamentals</th></tr>";
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    html += "<tr>"
+      + "<td>" + escapeHtml(r.symbol) + "</td>"
+      + "<td>" + escapeHtml(r.analysis) + "</td>"
+      + "<td><pre>" + escapeHtml(JSON.stringify(r.fundamentals, null, 2)) + "</pre></td>"
+      + "</tr>";
   }
-
   html += "</table>";
   document.getElementById("thirdTable").innerHTML = html;
 }
 
+console.log("PART3 script end");
 </script>
 
 </body>
 </html>
+
 """
