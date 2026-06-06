@@ -718,6 +718,9 @@ def index():
 <button onclick="runThirdScreening()">三次スクリーニングを実行</button>
 <div id="thirdTable"></div>
 
+<h3>④ 結果をHTMLとして保存</h3>
+<button onclick="downloadHtml()">この画面をHTML保存</button>
+
 <script>
 
 const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/";
@@ -993,6 +996,32 @@ function renderThirdTable(data) {
 
   html += "</table>";
   document.getElementById("thirdTable").innerHTML = html;
+}
+
+function downloadHtml() {
+  // 現在の HTML 全体を取得
+  const html = document.documentElement.outerHTML;
+
+  // Blob を作成
+  const blob = new Blob([html], { type: "text/html" });
+
+  // ダウンロード用リンクを作成
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+
+  a.href = url;
+  a.download = `stock_screening_${y}${m}${d}_${hh}${mm}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 </script>
