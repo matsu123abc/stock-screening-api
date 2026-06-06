@@ -724,7 +724,8 @@ def index():
 <button onclick="runThirdScreening()">三次スクリーニングを実行</button>
 <div id="thirdTable"></div>
 
-<h3>④ 結果をHTMLとして保存</h3>
+<h3>4. 結果をHTMLとして保存</h3>
+
 <button onclick="downloadHtml()">この画面をHTML保存</button>
 
 <script>
@@ -748,7 +749,6 @@ async function loadCsvSymbols(filename) {
 
     const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
 
-    // 1行目はヘッダー
     const headers = lines[0].split(",");
 
     const codeIndex = headers.indexOf("コード");
@@ -766,12 +766,33 @@ async function loadCsvSymbols(filename) {
     }
 
     html += "</ul>";
-        
+
     document.getElementById("csvSymbols").innerHTML = html;
 
   } catch (e) {
     document.getElementById("csvSymbols").innerHTML = "<p>CSV 読み込みエラー</p>";
   }
+}
+
+function downloadHtml() {
+  const html = document.documentElement.outerHTML;
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+
+  a.href = url;
+  a.download = `stock_screening_${y}${m}${d}_${hh}${mm}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ===============================
@@ -1043,32 +1064,6 @@ function renderThirdTable(data) {
 
   html += "</table>";
   document.getElementById("thirdTable").innerHTML = html;
-}
-
-function downloadHtml() {
-  // 現在の HTML 全体を取得
-  const html = document.documentElement.outerHTML;
-
-  // Blob を作成
-  const blob = new Blob([html], { type: "text/html" });
-
-  // ダウンロード用リンクを作成
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-
-  a.href = url;
-  a.download = `stock_screening_${y}${m}${d}_${hh}${mm}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 </script>
