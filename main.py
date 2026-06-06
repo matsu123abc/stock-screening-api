@@ -659,7 +659,7 @@ def index():
 
 <h3>①-B BLOB の CSV を選択して実行</h3>
 
-<select id="blobCsvList">
+<select id="blobCsvList" onchange="loadCsvSymbols(this.value)">
     <option value="prime_001-050.csv">prime_001-050.csv</option>
     <option value="prime_051-100.csv">prime_051-100.csv</option>
     <option value="prime_101-150.csv">prime_101-150.csv</option>
@@ -698,6 +698,12 @@ def index():
 
 <hr>
 
+<h3>選択したCSVの銘柄一覧</h3>
+<div id="csvSymbolsBox">
+  <button onclick="toggleCsvSymbols()">▼ 銘柄一覧を表示</button>
+  <div id="csvSymbols" style="display:none; margin-top:10px;"></div>
+</div>
+
 <h3>② 結果表示</h3>
 <div id="loading"></div>
 
@@ -727,6 +733,46 @@ const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/
 
 let latestResults = [];
 let latestSecond = [];
+
+function toggleCsvSymbols() {
+  const box = document.getElementById("csvSymbols");
+  box.style.display = (box.style.display === "none") ? "block" : "none";
+}
+
+async function loadCsvSymbols(filename) {
+  const url = "https://stockai20260214.blob.core.windows.net/block-data/" + filename;
+
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+
+    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+
+    // 1行目はヘッダー
+    const headers = lines[0].split(",");
+
+    const codeIndex = headers.indexOf("コード");
+    const nameIndex = headers.indexOf("銘柄名");
+    const marketIndex = headers.indexOf("市場");
+
+    let html = "<ul>";
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",");
+      const code = cols[codeIndex];
+      const name = cols[nameIndex];
+      const market = cols[marketIndex];
+      html += `<li>${code} : ${name}（${market}）</li>`;
+    }
+
+    html += "</ul>";
+        
+    document.getElementById("csvSymbols").innerHTML = html;
+
+  } catch (e) {
+    document.getElementById("csvSymbols").innerHTML = "<p>CSV 読み込みエラー</p>";
+  }
+}
 
 /* ===============================
    BLOB CSV 実行（ログなし）
@@ -777,6 +823,7 @@ async function loadResultJson(path) {
   renderAiTable(json);
   renderIndicatorTable(json);
 }
+
 
 /* ===============================
    一次スクリーニング結果
