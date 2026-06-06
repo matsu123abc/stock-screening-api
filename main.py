@@ -582,7 +582,7 @@ async def third_screening(body: dict):
 # ===== PART3   =====
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return """
+    return r"""
 <!DOCTYPE html>
 <html lang="ja">
 <head>
