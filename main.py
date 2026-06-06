@@ -700,7 +700,7 @@ def index():
 
 <h3>選択したCSVの銘柄一覧</h3>
 <div id="csvSymbolsBox">
-  <button onclick="toggleCsvSymbols()">銘柄一覧を表示</button>
+  <button id="csvToggleBtn" type="button" onclick="toggleCsvSymbols()">銘柄一覧を表示</button>
   <div id="csvSymbols" style="display:none; margin-top:10px;"></div>
 </div>
 
@@ -735,43 +735,114 @@ const RESULT_BLOB_BASE = "https://stockai20260214.blob.core.windows.net/results/
 let latestResults = [];
 let latestSecond = [];
 
+// トグル表示
 function toggleCsvSymbols() {
   const box = document.getElementById("csvSymbols");
-  box.style.display = (box.style.display === "none") ? "block" : "none";
+  const btn = document.getElementById("csvToggleBtn");
+  if (!box) return;
+  if (box.style.display === "none" || box.style.display === "") {
+    box.style.display = "block";
+    btn.textContent = "銘柄一覧を閉じる";
+  } else {
+    box.style.display = "none";
+    btn.textContent = "銘柄一覧を表示";
+  }
 }
 
+// CSV を読み込み、銘柄一覧を表示する
 async function loadCsvSymbols(filename) {
+  if (!filename) {
+    document.getElementById("csvSymbols").innerHTML = "<p>ファイルが選択されていません。</p>";
+    return;
+  }
+
   const url = "https://stockai20260214.blob.core.windows.net/block-data/" + filename;
 
   try {
     const res = await fetch(url);
-    const text = await res.text();
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    let text = await res.text();
 
-    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    // BOM を除去
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
 
-    const headers = lines[0].split(",");
-
-    const codeIndex = headers.indexOf("コード");
-    const nameIndex = headers.indexOf("銘柄名");
-    const marketIndex = headers.indexOf("市場");
-
-    let html = "<ul>";
-
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",");
-      const code = cols[codeIndex];
-      const name = cols[nameIndex];
-      const market = cols[marketIndex];
-      html += `<li>${code} : ${name}（${market}）</li>`;
+    // 行分割（CRLF / LF に対応）
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) {
+      document.getElementById("csvSymbols").innerHTML = "<p>CSV が空です。</p>";
+      return;
     }
 
+    // ヘッダー解析（カンマ区切り、引用符対応の簡易パーサ）
+    const parseCsvLine = (line) => {
+      const cols = [];
+      let cur = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"' ) {
+          if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
+          else inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
+          cols.push(cur);
+          cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+      cols.push(cur);
+      return cols.map(c => c.trim());
+    };
+
+    const headers = parseCsvLine(lines[0]).map(h => h.replace(/\uFEFF/g, "").trim());
+    // 柔軟にヘッダー名を探す
+    const codeIndex = headers.findIndex(h => /^(コード|code|symbol)$/i.test(h));
+    const nameIndex = headers.findIndex(h => /^(銘柄名|名称|name)$/i.test(h));
+    const marketIndex = headers.findIndex(h => /^(市場|market)$/i.test(h));
+
+    if (codeIndex === -1 || nameIndex === -1) {
+      document.getElementById("csvSymbols").innerHTML = "<p>CSV ヘッダーに「コード」「銘柄名」が見つかりません。</p>";
+      return;
+    }
+
+    let html = `<p>銘柄数: ${lines.length - 1} 件</p><ul>`;
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLine(lines[i]);
+      const code = cols[codeIndex] || "";
+      const name = cols[nameIndex] || "";
+      const market = (marketIndex !== -1) ? (cols[marketIndex] || "") : "";
+      // Yahoo ファイナンスへのリンク（新しいタブで開く）
+      const link = code ? `https://finance.yahoo.co.jp/quote/${encodeURIComponent(code)}` : "#";
+      html += `<li><a href="${link}" target="_blank" rel="noopener noreferrer">${escapeHtml(code)} : ${escapeHtml(name)}</a>`;
+      if (market) html += ` （${escapeHtml(market)}）`;
+      html += `</li>`;
+    }
     html += "</ul>";
 
     document.getElementById("csvSymbols").innerHTML = html;
 
+    // 自動で展開する（任意）
+    const box = document.getElementById("csvSymbols");
+    if (box && (box.style.display === "none" || box.style.display === "")) {
+      box.style.display = "block";
+      const btn = document.getElementById("csvToggleBtn");
+      if (btn) btn.textContent = "銘柄一覧を閉じる";
+    }
+
   } catch (e) {
+    console.error("loadCsvSymbols error:", e);
     document.getElementById("csvSymbols").innerHTML = "<p>CSV 読み込みエラー</p>";
   }
+}
+
+// XSS 対策のための簡易エスケープ
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
 }
 
 function downloadHtml() {
