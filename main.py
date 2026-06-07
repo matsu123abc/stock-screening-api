@@ -416,18 +416,73 @@ async def screening_from_blob(body: BlobCSVRequest):
 # =========================
 # explain_symbol（企業説明）
 # =========================
+import os
+import logging
+import asyncio
+import yfinance as yf
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+
+# 簡易キャッシュ（メモリ内、短時間）
+_EXPLAIN_CACHE = {}
+_CACHE_TTL = 60 * 60  # 1時間
+
+def _get_cached(symbol: str):
+    rec = _EXPLAIN_CACHE.get(symbol)
+    if not rec:
+        return None
+    ts, value = rec
+    if (time.time() - ts) > _CACHE_TTL:
+        del _EXPLAIN_CACHE[symbol]
+        return None
+    return value
+
+def _set_cache(symbol: str, value):
+    _EXPLAIN_CACHE[symbol] = (time.time(), value)
+
 @app.get("/api/explain_symbol")
 async def explain_symbol(symbol: str):
+    """
+    改善点
+    - UI が期待するキー名 "comment" を返す
+    - 環境変数チェックを行い、未設定なら明示的にエラー情報を返す
+    - OpenAI 呼び出しにタイムアウトとリトライを導入
+    - 例外時は詳細をログに残し、UI が扱いやすい形で応答する（comment: null）
+    - 簡易キャッシュを導入して同一リクエストの負荷を軽減
+    """
+
+    import time
+    # キャッシュ確認
+    cached = _get_cached(symbol)
+    if cached:
+        return JSONResponse({"symbol": symbol, "company": cached.get("company"), "comment": cached.get("comment")}, status_code=200)
+
     try:
+        # 環境変数チェック
+        required_envs = [
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_API_VERSION",
+            "AZURE_OPENAI_ENDPOINT",
+            "AZURE_OPENAI_DEPLOYMENT"
+        ]
+        missing = [k for k in required_envs if not os.getenv(k)]
+        if missing:
+            logging.error("Missing environment variables for AzureOpenAI: %s", missing)
+            return JSONResponse(
+                {"symbol": symbol, "company": None, "comment": None, "error": f"Server configuration error: missing {', '.join(missing)}"},
+                status_code=200
+            )
+
+        # 企業情報取得
         ticker = yf.Ticker(symbol)
-        info = ticker.info
-
+        info = ticker.info or {}
         company_name = info.get("shortName") or info.get("longName") or symbol
-        summary = info.get("longBusinessSummary")
+        summary = info.get("longBusinessSummary") or "企業情報（longBusinessSummary）が取得できませんでした。"
 
-        if not summary:
-            summary = "企業情報（longBusinessSummary）が取得できませんでした。"
-
+        # AzureOpenAI クライアント初期化
+        from azure.openai import AzureOpenAI  # 既存コードに合わせてインポート
         client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
@@ -437,7 +492,7 @@ async def explain_symbol(symbol: str):
         prompt = f"""
 あなたはプロの株式アナリストです。
 以下の企業情報をもとに、この企業が「何をしている会社か」「主力事業」「強み」「特徴」を
-投資家向けに分かりやすく説明してください。
+投資家向けに分かりやすく 4〜6 行で説明してください。
 
 【企業名】
 {company_name}
@@ -446,26 +501,75 @@ async def explain_symbol(symbol: str):
 {summary}
 """
 
-        res = client.chat.completions.create(
-            model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
+        # OpenAI 呼び出し（タイムアウト + リトライ）
+        max_retries = 2
+        timeout_seconds = 15
+        explanation = None
+        last_exc = None
 
-        explanation = res.choices[0].message.content.strip()
+        for attempt in range(max_retries + 1):
+            try:
+                # 非同期クライアントでない場合は同期呼び出しをそのまま使う
+                # タイムアウトは asyncio.wait_for でラップ
+                async def _call():
+                    return client.chat.completions.create(
+                        model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.2,
+                    )
 
+                res = await asyncio.wait_for(_call(), timeout=timeout_seconds)
+                # レスポンス構造に依存するため安全に取り出す
+                explanation = None
+                if res and getattr(res, "choices", None):
+                    choice0 = res.choices[0]
+                    # choice0.message.content の存在を確認
+                    msg = getattr(choice0, "message", None)
+                    if msg and getattr(msg, "content", None):
+                        explanation = msg.content.strip()
+                    else:
+                        # 一部クライアントでは choice0.text の場合もある
+                        explanation = getattr(choice0, "text", None)
+                        if explanation:
+                            explanation = explanation.strip()
+                # 成功したらループを抜ける
+                if explanation:
+                    break
+
+            except asyncio.TimeoutError as te:
+                last_exc = te
+                logging.warning("OpenAI call timeout for %s (attempt %d)", symbol, attempt + 1)
+            except Exception as e:
+                last_exc = e
+                logging.exception("OpenAI call failed for %s (attempt %d)", symbol, attempt + 1)
+            # リトライ前に短い待機
+            await asyncio.sleep(1 + attempt * 1.5)
+
+        # 最終チェック
+        if not explanation:
+            logging.error("Failed to generate explanation for %s: %s", symbol, repr(last_exc))
+            # UI が扱いやすい形で返す（comment を null にする）
+            return JSONResponse(
+                {"symbol": symbol, "company": company_name, "comment": None, "error": "説明の生成に失敗しました"},
+                status_code=200
+            )
+
+        # キャッシュ保存
+        _set_cache(symbol, {"company": company_name, "comment": explanation})
+
+        # 正常応答（UI は comment を期待）
         return JSONResponse(
-            {
-                "symbol": symbol,
-                "company": company_name,
-                "explanation": explanation
-            },
+            {"symbol": symbol, "company": company_name, "comment": explanation},
             status_code=200
         )
 
     except Exception as e:
-        logging.exception("explain_symbol error")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        logging.exception("explain_symbol unexpected error for %s", symbol)
+        # ここでも UI が扱いやすい形で返す（comment: null）
+        return JSONResponse(
+            {"symbol": symbol, "company": None, "comment": None, "error": "サーバー内部エラーが発生しました"},
+            status_code=200
+        )
 
 
 # =========================
