@@ -454,12 +454,11 @@ async def explain_symbol(symbol: str):
 
         explanation = res.choices[0].message.content.strip()
 
-        # ★ UI が期待しているキー名に合わせる（comment）
         return JSONResponse(
             {
                 "symbol": symbol,
                 "company": company_name,
-                "comment": explanation
+                "explanation": explanation
             },
             status_code=200
         )
